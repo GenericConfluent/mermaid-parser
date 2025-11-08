@@ -110,4 +110,5 @@ pub struct Namespace {
 pub struct Diagram {
     pub namespaces: HashMap<String, Namespace>,
     pub relations:  Vec<Relation>,
+    pub yaml: Option<serde_yml::Value>,
 }

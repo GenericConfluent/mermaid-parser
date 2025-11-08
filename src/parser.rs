@@ -32,8 +32,11 @@ enum Stmt {
 // ────────────────────────────────────────────────────────────────────────────────
 
 pub fn parse(src: &str) -> Result<Diagram, ParseError> {
+    // 0) Extract YAML frontmatter if present
+    let (yaml_value, mermaid_src) = extract_yaml_frontmatter(src)?;
+
     // 1) let Pest build a rich tree (inc. all tokens)
-    let mut outer = MermaidParser::parse(Rule::diagram, src)?;
+    let mut outer = MermaidParser::parse(Rule::diagram, mermaid_src)?;
     let diagram_pair = outer
         .next()
         .ok_or_else(|| ParseError::Custom("diagram pair missing".into()))?;
@@ -46,10 +49,38 @@ pub fn parse(src: &str) -> Result<Diagram, ParseError> {
 
     // 3) second pass – build the final Diagram
     let mut diagram = Diagram::default();
+    diagram.yaml = yaml_value;
     for stmt in stmts {
         apply_stmt(stmt, &mut diagram);
     }
     Ok(diagram)
+}
+
+/// Extract YAML frontmatter delimited by --- at the start of the file
+/// Returns (Option<yaml_value>, remaining_mermaid_source)
+fn extract_yaml_frontmatter(src: &str) -> Result<(Option<serde_yml::Value>, &str), ParseError> {
+    let trimmed = src.trim_start();
+
+    // Check if the file starts with ---
+    if !trimmed.starts_with("---") {
+        return Ok((None, src));
+    }
+
+    // Find the closing ---
+    let after_opening = &trimmed[3..];
+    if let Some(closing_pos) = after_opening.find("\n---") {
+        let yaml_content = &after_opening[..closing_pos];
+        let remaining = &after_opening[closing_pos + 4..]; // Skip \n---
+
+        // Parse the YAML
+        let yaml_value: serde_yml::Value = serde_yml::from_str(yaml_content)
+            .map_err(|e| ParseError::Custom(format!("YAML parse error: {}", e)))?;
+
+        Ok((Some(yaml_value), remaining.trim_start()))
+    } else {
+        // No closing ---, treat the whole thing as mermaid
+        Ok((None, src))
+    }
 }
 
 // ────────────────────────────────────────────────────────────────────────────────
