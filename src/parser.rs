@@ -277,21 +277,58 @@ fn parse_parameter(p: Pair<Rule>) -> Result<Parameter, ParseError> {
 
 fn scan_relation(pair: Pair<Rule>) -> Result<Relation, ParseError> {
     let mut inner = pair.into_inner();
-    let first = inner
+
+    // Parse: class_identifier ~ cardinality? ~ relation ~ cardinality? ~ class_identifier ~ relation_label?
+    let first_class = inner
         .next()
-        .ok_or_else(|| ParseError::Custom("relation: from missing".into()))?
+        .ok_or_else(|| ParseError::Custom("relation: from class missing".into()))?
         .as_str()
         .trim()
         .to_owned();
-    let arrow = inner
-        .next()
-        .ok_or_else(|| ParseError::Custom("relation: arrow missing".into()))?;
-    let second = inner
-        .next()
-        .ok_or_else(|| ParseError::Custom("relation: to missing".into()))?
-        .as_str()
-        .trim()
-        .to_owned();
+
+    let mut cardinality1: Option<String> = None;
+    let mut arrow_rule: Option<Pair<Rule>> = None;
+    let mut cardinality2: Option<String> = None;
+    let mut second_class: Option<String> = None;
+    let mut label: Option<String> = None;
+
+    // Parse the remaining parts in order
+    for part in inner {
+        match part.as_rule() {
+            Rule::cardinality => {
+                // Extract text between quotes
+                let text = part.as_str().trim();
+                let unquoted = text.trim_matches('"');
+                if arrow_rule.is_none() {
+                    cardinality1 = Some(unquoted.to_owned());
+                } else {
+                    cardinality2 = Some(unquoted.to_owned());
+                }
+            }
+            Rule::class_identifier => {
+                second_class = Some(part.as_str().trim().to_owned());
+            }
+            Rule::relation_label => {
+                // Skip the ":" and trim
+                let text = part.as_str().trim();
+                label = Some(text.trim_start_matches(':').trim().to_owned());
+            }
+            // All the arrow types
+            Rule::aggregation_left | Rule::aggregation_right
+            | Rule::composition_left | Rule::composition_right
+            | Rule::inheritance_left | Rule::inheritance_right
+            | Rule::realization_left | Rule::realization_right
+            | Rule::association_left | Rule::association_right
+            | Rule::dependency_left | Rule::dependency_right
+            | Rule::link => {
+                arrow_rule = Some(part);
+            }
+            _ => {}
+        }
+    }
+
+    let arrow = arrow_rule.ok_or_else(|| ParseError::Custom("relation: arrow missing".into()))?;
+    let second = second_class.ok_or_else(|| ParseError::Custom("relation: to class missing".into()))?;
 
     // Determine kind, line style, and whether arrow points left (swap from/to)
     let (kind, line, points_left) = match arrow.as_rule() {
@@ -311,11 +348,11 @@ fn scan_relation(pair: Pair<Rule>) -> Result<Relation, ParseError> {
         _ => (RelationKind::Dependency, LineStyle::Solid, false),
     };
 
-    // If arrow points left, swap from and to
-    let (from, to) = if points_left {
-        (second, first)
+    // If arrow points left, swap from/to AND swap cardinalities
+    let (from, to, cardinality_from, cardinality_to) = if points_left {
+        (second, first_class, cardinality2, cardinality1)
     } else {
-        (first, second)
+        (first_class, second, cardinality1, cardinality2)
     };
 
     Ok(Relation {
@@ -323,8 +360,9 @@ fn scan_relation(pair: Pair<Rule>) -> Result<Relation, ParseError> {
         to,
         kind,
         line,
-        label_from: None,
-        label_to: None,
+        cardinality_from,
+        cardinality_to,
+        label,
     })
 }
 

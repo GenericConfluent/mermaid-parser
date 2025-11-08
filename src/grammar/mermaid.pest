@@ -68,8 +68,11 @@ statement = _{((class | relation_stmt | member_stmt | comment) ~ NEWLINE*)*}
 
 
 relation_stmt = {
-    class_identifier ~ relation ~ class_identifier
+    class_identifier ~ cardinality? ~ relation ~ cardinality? ~ class_identifier ~ relation_label?
 }
+
+cardinality = { quoted_text }
+relation_label = { ":" ~ (!NEWLINE ~ ANY)+ }
 
 relation = _{ aggregation_left | aggregation_right
             | composition_left | composition_right

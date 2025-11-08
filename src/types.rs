@@ -89,12 +89,13 @@ pub enum RelationKind {
 /// Edge between two classes
 #[derive(Debug, Clone)]
 pub struct Relation {
-    pub from: String,            // fully-qualified class names
+    pub from: String,                    // fully-qualified class names
     pub to: String,
     pub kind: RelationKind,
     pub line: LineStyle,
-    pub label_from: Option<String>,
-    pub label_to: Option<String>,
+    pub cardinality_from: Option<String>, // e.g., "1", "*", "1..*"
+    pub cardinality_to: Option<String>,   // e.g., "1", "*", "1..*"
+    pub label: Option<String>,            // relationship label text
 }
 
 /// Recursive namespace tree
