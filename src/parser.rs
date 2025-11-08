@@ -246,7 +246,7 @@ fn parse_parameter(p: Pair<Rule>) -> Result<Parameter, ParseError> {
 
 fn scan_relation(pair: Pair<Rule>) -> Result<Relation, ParseError> {
     let mut inner = pair.into_inner();
-    let from = inner
+    let first = inner
         .next()
         .ok_or_else(|| ParseError::Custom("relation: from missing".into()))?
         .as_str()
@@ -255,21 +255,36 @@ fn scan_relation(pair: Pair<Rule>) -> Result<Relation, ParseError> {
     let arrow = inner
         .next()
         .ok_or_else(|| ParseError::Custom("relation: arrow missing".into()))?;
-    let to = inner
+    let second = inner
         .next()
         .ok_or_else(|| ParseError::Custom("relation: to missing".into()))?
         .as_str()
         .trim()
         .to_owned();
 
-    let (kind, line) = match arrow.as_rule() {
-        Rule::aggregation => (RelationKind::Aggregation, LineStyle::Solid),
-        Rule::composition => (RelationKind::Composition, LineStyle::Solid),
-        Rule::inheritance => (RelationKind::Extension, LineStyle::Solid),
-        Rule::dependency => (RelationKind::Dependency, LineStyle::Dotted),
-        Rule::realization => (RelationKind::Dependency, LineStyle::Dotted),
-        Rule::link | Rule::association => (RelationKind::Dependency, LineStyle::Solid),
-        _ => (RelationKind::Dependency, LineStyle::Solid),
+    // Determine kind, line style, and whether arrow points left (swap from/to)
+    let (kind, line, points_left) = match arrow.as_rule() {
+        Rule::aggregation_left => (RelationKind::Aggregation, LineStyle::Solid, true),
+        Rule::aggregation_right => (RelationKind::Aggregation, LineStyle::Solid, false),
+        Rule::composition_left => (RelationKind::Composition, LineStyle::Solid, true),
+        Rule::composition_right => (RelationKind::Composition, LineStyle::Solid, false),
+        Rule::inheritance_left => (RelationKind::Extension, LineStyle::Solid, true),
+        Rule::inheritance_right => (RelationKind::Extension, LineStyle::Solid, false),
+        Rule::realization_left => (RelationKind::Dependency, LineStyle::Dotted, true),
+        Rule::realization_right => (RelationKind::Dependency, LineStyle::Dotted, false),
+        Rule::association_left => (RelationKind::Dependency, LineStyle::Solid, true),
+        Rule::association_right => (RelationKind::Dependency, LineStyle::Solid, false),
+        Rule::dependency_left => (RelationKind::Dependency, LineStyle::Dotted, true),
+        Rule::dependency_right => (RelationKind::Dependency, LineStyle::Dotted, false),
+        Rule::link => (RelationKind::Dependency, LineStyle::Solid, false),
+        _ => (RelationKind::Dependency, LineStyle::Solid, false),
+    };
+
+    // If arrow points left, swap from and to
+    let (from, to) = if points_left {
+        (second, first)
+    } else {
+        (first, second)
     };
 
     Ok(Relation {

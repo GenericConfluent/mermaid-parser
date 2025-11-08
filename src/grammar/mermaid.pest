@@ -71,15 +71,27 @@ relation_stmt = {
     class_identifier ~ relation ~ class_identifier
 }
 
-relation = _{ aggregation | composition | inheritance | realization | association | dependency | link }
+relation = _{ aggregation_left | aggregation_right
+            | composition_left | composition_right
+            | inheritance_left | inheritance_right
+            | realization_left | realization_right
+            | association_left | association_right
+            | dependency_left | dependency_right
+            | link }
 
-aggregation   = { "o--" | "--o" }
-composition   = { "*--" | "--*" }
-inheritance   = { "<|--" | "--|>" }
-realization   = { "<|.." | "..|>" }
-association   = { "-->" | "<--" }
-dependency    = { "..>" | "<.." }
-link          = { "--" }
+aggregation_left    = { "o--" }
+aggregation_right   = { "--o" }
+composition_left    = { "*--" }
+composition_right   = { "--*" }
+inheritance_left    = { "<|--" }
+inheritance_right   = { "--|>" }
+realization_left    = { "<|.." }
+realization_right   = { "..|>" }
+association_left    = { "<--" }
+association_right   = { "-->" }
+dependency_left     = { "<.." }
+dependency_right    = { "..>" }
+link                = { "--" }
 
 member_stmt       = { class_identifier ~ ":" ~ member_decl }
 member_decl       = { class_method_decl | class_property_decl }
