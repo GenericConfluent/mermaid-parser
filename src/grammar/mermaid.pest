@@ -62,8 +62,11 @@ class_method = {
     ~ method_parameter
 }
 
-parameter        = { class_identifier ~ variable_identifier
-                   | variable_identifier }
+parameter        = {
+    class_identifier ~ variable_identifier  // prefix: int x
+  | variable_identifier ~ ":" ~ class_identifier  // postfix: x: int
+  | variable_identifier  // no type
+}
 
 parameter_list   = { parameter ~ ("," ~ parameter)* }
 method_parameter = { "(" ~ parameter_list? ~ ")" }
@@ -111,8 +114,13 @@ link                = { "--" }
 
 member_stmt       = { class_identifier ~ ":" ~ member_decl }
 member_decl       = { class_method_decl | class_property_decl }
-class_method_decl = { visibility? ~ classifier? ~ method_identifier ~ method_parameter ~ (":" ~ class_identifier)? }
-class_property_decl = { visibility? ~ classifier? ~ (class_identifier ~ variable_identifier | variable_identifier) }
+class_method_decl = { visibility? ~ classifier? ~ method_identifier ~ method_parameter ~ class_identifier? }
+class_property_decl = { visibility? ~ classifier? ~ property_type }
+property_type = {
+    class_identifier ~ variable_identifier  // prefix: int x
+  | variable_identifier ~ ":" ~ class_identifier  // postfix: x: int
+  | variable_identifier  // no type
+}
 
 
 visibility = @{ public | private | protected | package }

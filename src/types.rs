@@ -12,6 +12,14 @@ pub enum Direction {
     LeftRight,    // LR
 }
 
+/// Type annotation notation style
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TypeNotation {
+    Prefix,   // Type Name (e.g., "int x")
+    Postfix,  // Name: Type (e.g., "x: int")
+    None,     // No type specified
+}
+
 /// Public/Private/… like in Mermaid (# + ~ - or empty)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Visibility {
@@ -39,6 +47,7 @@ impl From<char> for Visibility {
 pub struct Parameter {
     pub name: String,
     pub data_type: Option<String>,     // `None` if omitted in the diagram
+    pub type_notation: TypeNotation,   // Prefix, Postfix, or None
 }
 
 /// A member inside a class box
@@ -57,7 +66,8 @@ pub struct Attribute {
     pub visibility: Visibility,
     pub name: String,
     pub data_type: Option<String>,
-    pub is_static: bool,               // “$” in Mermaid
+    pub is_static: bool,               // "$" in Mermaid
+    pub type_notation: TypeNotation,   // Prefix, Postfix, or None
 }
 
 /// Data that only a **method** has
@@ -67,8 +77,9 @@ pub struct Method {
     pub name: String,
     pub parameters: Vec<Parameter>,
     pub return_type: Option<String>,
-    pub is_static: bool,               // “$” in Mermaid
-    pub is_abstract: bool,             // “*” in Mermaid
+    pub is_static: bool,               // "$" in Mermaid
+    pub is_abstract: bool,             // "*" in Mermaid
+    pub return_type_notation: TypeNotation, // Prefix, Postfix, or None
 }
 
 /// A single class or interface in the diagram

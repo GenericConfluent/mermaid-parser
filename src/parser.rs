@@ -5,7 +5,7 @@ use thiserror::Error;
 
 use crate::types::{
     Attribute, Class, Diagram, Direction, LineStyle, Member, Method, Namespace, Note, Parameter,
-    Relation, RelationKind, Visibility, DEFAULT_NAMESPACE,
+    Relation, RelationKind, TypeNotation, Visibility, DEFAULT_NAMESPACE,
 };
 
 #[derive(Parser)]
@@ -200,11 +200,38 @@ fn parse_attribute(
     let mut visibility = Visibility::Unspecified;
     let mut name: Option<String> = None;
     let mut ty: Option<String> = None;
+    let mut type_notation = TypeNotation::None;
+
     for p in attr.into_inner() {
         match p.as_rule() {
             Rule::visibility => visibility = Visibility::from(p.as_str().chars().next().unwrap()),
-            Rule::variable_identifier => name = Some(p.as_str().to_owned()),
-            Rule::class_identifier => ty = Some(strip_backticks(p.as_str())),
+            Rule::property_type => {
+                // Parse the property_type rule to determine notation
+                let mut parts = p.into_inner();
+                let first = parts.next();
+                let second = parts.next();
+
+                match (first, second) {
+                    (Some(f), Some(s)) if f.as_rule() == Rule::class_identifier => {
+                        // Prefix: Type Name
+                        ty = Some(strip_backticks(f.as_str()));
+                        name = Some(s.as_str().to_owned());
+                        type_notation = TypeNotation::Prefix;
+                    }
+                    (Some(f), Some(s)) if f.as_rule() == Rule::variable_identifier => {
+                        // Postfix: Name: Type
+                        name = Some(f.as_str().to_owned());
+                        ty = Some(strip_backticks(s.as_str()));
+                        type_notation = TypeNotation::Postfix;
+                    }
+                    (Some(f), None) if f.as_rule() == Rule::variable_identifier => {
+                        // No type
+                        name = Some(f.as_str().to_owned());
+                        type_notation = TypeNotation::None;
+                    }
+                    _ => {}
+                }
+            }
             _ => {}
         }
     }
@@ -213,6 +240,7 @@ fn parse_attribute(
         name: name.ok_or_else(|| ParseError::Custom("attr name missing".into()))?,
         data_type: ty,
         is_static,
+        type_notation,
     })
 }
 
@@ -229,13 +257,18 @@ fn parse_method(
     let mut name: Option<String> = None;
     let mut params: Vec<Parameter> = Vec::new();
     let mut return_type: Option<String> = None;
+    let mut return_type_notation = TypeNotation::None;
 
     for p in meth.into_inner() {
         match p.as_rule() {
             Rule::visibility => visibility = Visibility::from(p.as_str().chars().next().unwrap()),
             Rule::method_identifier => name = Some(p.as_str().to_owned()),
             Rule::method_parameter => params = parse_parameters(p)?,
-            Rule::class_identifier => return_type = Some(strip_backticks(p.as_str())),
+            Rule::class_identifier => {
+                return_type = Some(strip_backticks(p.as_str()));
+                // If there's a return type, it's postfix notation (no colon in grammar now)
+                return_type_notation = TypeNotation::Postfix;
+            }
             _ => {}
         }
     }
@@ -247,14 +280,27 @@ fn parse_method(
         return_type,
         is_static,
         is_abstract,
+        return_type_notation,
     })
 }
 
 fn parse_parameters(list: Pair<Rule>) -> Result<Vec<Parameter>, ParseError> {
     let mut v = Vec::<Parameter>::new();
-    for p in list.into_inner() { // parameter_list → many parameter
-        if p.as_rule() == Rule::parameter {
-            v.push(parse_parameter(p)?);
+    for p in list.into_inner() { // method_parameter → parameter_list → many parameter
+        match p.as_rule() {
+            Rule::parameter_list => {
+                // Descend into parameter_list
+                for param in p.into_inner() {
+                    if param.as_rule() == Rule::parameter {
+                        v.push(parse_parameter(param)?);
+                    }
+                }
+            }
+            Rule::parameter => {
+                // Direct parameter (shouldn't happen with current grammar)
+                v.push(parse_parameter(p)?);
+            }
+            _ => {}
         }
     }
     Ok(v)
@@ -263,16 +309,37 @@ fn parse_parameters(list: Pair<Rule>) -> Result<Vec<Parameter>, ParseError> {
 fn parse_parameter(p: Pair<Rule>) -> Result<Parameter, ParseError> {
     let mut ty: Option<String> = None;
     let mut name: Option<String> = None;
-    for part in p.into_inner() {
-        match part.as_rule() {
-            Rule::class_identifier => ty = Some(strip_backticks(part.as_str())),
-            Rule::variable_identifier => name = Some(part.as_str().to_owned()),
-            _ => {}
+    let mut type_notation = TypeNotation::None;
+
+    let mut parts = p.into_inner();
+    let first = parts.next();
+    let second = parts.next();
+
+    match (first, second) {
+        (Some(f), Some(s)) if f.as_rule() == Rule::class_identifier => {
+            // Prefix: Type Name
+            ty = Some(strip_backticks(f.as_str()));
+            name = Some(s.as_str().to_owned());
+            type_notation = TypeNotation::Prefix;
         }
+        (Some(f), Some(s)) if f.as_rule() == Rule::variable_identifier => {
+            // Postfix: Name: Type
+            name = Some(f.as_str().to_owned());
+            ty = Some(strip_backticks(s.as_str()));
+            type_notation = TypeNotation::Postfix;
+        }
+        (Some(f), None) if f.as_rule() == Rule::variable_identifier => {
+            // No type
+            name = Some(f.as_str().to_owned());
+            type_notation = TypeNotation::None;
+        }
+        _ => {}
     }
+
     Ok(Parameter {
         name: name.ok_or_else(|| ParseError::Custom("param name missing".into()))?,
         data_type: ty,
+        type_notation,
     })
 }
 
