@@ -1,7 +1,16 @@
 use std::collections::HashMap;
 
-/// “default” (no explicit namespace in the diagram)  
+/// "default" (no explicit namespace in the diagram)
 pub const DEFAULT_NAMESPACE: &str = "";
+
+/// Direction of the diagram layout
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Direction {
+    TopBottom,    // TB or TD
+    BottomTop,    // BT
+    RightLeft,    // RL
+    LeftRight,    // LR
+}
 
 /// Public/Private/… like in Mermaid (# + ~ - or empty)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -98,6 +107,13 @@ pub struct Relation {
     pub label: Option<String>,            // relationship label text
 }
 
+/// A note in the diagram - either general or attached to a specific class
+#[derive(Debug, Clone)]
+pub struct Note {
+    pub text: String,                     // the note content
+    pub target_class: Option<String>,     // None for general notes, Some(class) for "note for ClassName"
+}
+
 /// Recursive namespace tree
 #[derive(Debug, Default)]
 pub struct Namespace {
@@ -111,5 +127,7 @@ pub struct Namespace {
 pub struct Diagram {
     pub namespaces: HashMap<String, Namespace>,
     pub relations:  Vec<Relation>,
+    pub notes:      Vec<Note>,
+    pub direction:  Option<Direction>,
     pub yaml: Option<serde_yml::Value>,
 }

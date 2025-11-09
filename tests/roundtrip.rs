@@ -15,7 +15,11 @@ mod tests {
             "my_class",
             "my-class",
             "Fahrzeug123",
-            "A_very_long_class_name_with_123_and_dashes"
+            "A_very_long_class_name_with_123_and_dashes",
+            "`Animal Class!`",
+            "`Car Class`",
+            "`Test-Class!@#`",
+            "`My Test Class`",
         ];
         for name in valid_names {
             let class_string = format!("class {}", name);
@@ -122,10 +126,27 @@ mod tests {
     #[test]
     fn test_valid_note() {
         let valid_cases = vec![
-            r#"note "This is a general note""#,            // Public property
+            r#"note "This is a general note""#,
+            r#"note for Time "This was made because Date objects can't store time""#,
         ];
         for case in valid_cases {
             let parsed = ExplicitClassParser::parse(Rule::test_note, case);
+            println!("{:#?}", parsed);
+            assert!(parsed.is_ok());
+        }
+    }
+
+    #[test]
+    fn test_valid_direction() {
+        let valid_cases = vec![
+            r#"direction TB"#,
+            r#"direction TD"#,
+            r#"direction BT"#,
+            r#"direction RL"#,
+            r#"direction LR"#,
+        ];
+        for case in valid_cases {
+            let parsed = ExplicitClassParser::parse(Rule::test_direction, case);
             println!("{:#?}", parsed);
             assert!(parsed.is_ok());
         }

@@ -3,8 +3,13 @@ comment = {
     "%%" ~ (!NEWLINE ~ ANY)*
 }
 note = {
-    "note" ~ quoted_text
+    "note" ~ "for" ~ class_identifier ~ quoted_text
+  | "note" ~ quoted_text
 }
+direction = {
+    "direction" ~ direction_value
+}
+direction_value = { "TB" | "TD" | "BT" | "RL" | "LR" }
 quoted_text = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
 variable_identifier = @{
     (ASCII_ALPHA | "_") ~
@@ -21,12 +26,20 @@ method_identifier = @{
     )*
 }
 
-class_identifier = @{
+backtick_identifier = @{
+    "`" ~ (!"`" ~ ANY)+ ~ "`"
+}
+
+plain_identifier = @{
     ASCII_ALPHA
     ~
     ((("_"|"-") ~ &ASCII_ALPHANUMERIC)
     | ASCII_ALPHANUMERIC
     )*
+}
+
+class_identifier = @{
+    backtick_identifier | plain_identifier
 }
 
 class = { "class" ~ class_identifier }
@@ -64,7 +77,7 @@ diagram = {
    ~ EOI
 }
 
-statement = _{((class | relation_stmt | member_stmt | comment) ~ NEWLINE*)*}
+statement = _{((class | relation_stmt | member_stmt | note | direction | comment) ~ NEWLINE*)*}
 
 
 relation_stmt = {
@@ -133,4 +146,7 @@ test_comment = {
 }
 test_note = {
     SOI ~ note ~ EOI
+}
+test_direction = {
+    SOI ~ direction ~ EOI
 }

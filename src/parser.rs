@@ -4,8 +4,8 @@ use pest_derive::Parser;
 use thiserror::Error;
 
 use crate::types::{
-    Attribute, Class, Diagram, LineStyle, Member, Method, Namespace, Parameter, Relation,
-    RelationKind, Visibility, DEFAULT_NAMESPACE,
+    Attribute, Class, Diagram, Direction, LineStyle, Member, Method, Namespace, Note, Parameter,
+    Relation, RelationKind, Visibility, DEFAULT_NAMESPACE,
 };
 
 #[derive(Parser)]
@@ -25,6 +25,8 @@ enum Stmt {
     Class(Class),
     Member { target: String, member: Member },
     Relation(Relation),
+    Note(Note),
+    Direction(Direction),
 }
 
 // ────────────────────────────────────────────────────────────────────────────────
@@ -92,6 +94,8 @@ fn collect_stmt(pair: Pair<Rule>, out: &mut Vec<Stmt>) -> Result<(), ParseError>
         Rule::class => out.push(Stmt::Class(scan_class(pair)?)),
         Rule::member_stmt => out.push(scan_member_stmt(pair)?),
         Rule::relation_stmt => out.push(Stmt::Relation(scan_relation(pair)?)),
+        Rule::note => out.push(Stmt::Note(scan_note(pair)?)),
+        Rule::direction => out.push(Stmt::Direction(scan_direction(pair)?)),
         _ => {
             for inner in pair.into_inner() {
                 collect_stmt(inner, out)?;
@@ -111,7 +115,7 @@ fn scan_class(pair: Pair<Rule>) -> Result<Class, ParseError> {
 
     for inner in pair.into_inner() {
         match inner.as_rule() {
-            Rule::class_identifier => id = Some(inner.as_str().to_owned()),
+            Rule::class_identifier => id = Some(strip_backticks(inner.as_str())),
             Rule::member_stmt => {
                 if let Stmt::Member { member, .. } = scan_member_stmt(inner)? {
                     members.push(member)
@@ -140,12 +144,13 @@ fn scan_class(pair: Pair<Rule>) -> Result<Class, ParseError> {
 fn scan_member_stmt(pair: Pair<Rule>) -> Result<Stmt, ParseError> {
     // grammar: class_identifier ':' member_decl
     let mut inner = pair.into_inner();
-    let target = inner
-        .next()
-        .ok_or_else(|| ParseError::Custom("member: target missing".into()))?
-        .as_str()
-        .trim()
-        .to_owned();
+    let target = strip_backticks(
+        inner
+            .next()
+            .ok_or_else(|| ParseError::Custom("member: target missing".into()))?
+            .as_str()
+            .trim()
+    );
     let member_decl = inner
         .next()
         .ok_or_else(|| ParseError::Custom("member: decl missing".into()))?;
@@ -199,7 +204,7 @@ fn parse_attribute(
         match p.as_rule() {
             Rule::visibility => visibility = Visibility::from(p.as_str().chars().next().unwrap()),
             Rule::variable_identifier => name = Some(p.as_str().to_owned()),
-            Rule::class_identifier => ty = Some(p.as_str().to_owned()),
+            Rule::class_identifier => ty = Some(strip_backticks(p.as_str())),
             _ => {}
         }
     }
@@ -230,7 +235,7 @@ fn parse_method(
             Rule::visibility => visibility = Visibility::from(p.as_str().chars().next().unwrap()),
             Rule::method_identifier => name = Some(p.as_str().to_owned()),
             Rule::method_parameter => params = parse_parameters(p)?,
-            Rule::class_identifier => return_type = Some(p.as_str().to_owned()),
+            Rule::class_identifier => return_type = Some(strip_backticks(p.as_str())),
             _ => {}
         }
     }
@@ -260,7 +265,7 @@ fn parse_parameter(p: Pair<Rule>) -> Result<Parameter, ParseError> {
     let mut name: Option<String> = None;
     for part in p.into_inner() {
         match part.as_rule() {
-            Rule::class_identifier => ty = Some(part.as_str().to_owned()),
+            Rule::class_identifier => ty = Some(strip_backticks(part.as_str())),
             Rule::variable_identifier => name = Some(part.as_str().to_owned()),
             _ => {}
         }
@@ -279,12 +284,13 @@ fn scan_relation(pair: Pair<Rule>) -> Result<Relation, ParseError> {
     let mut inner = pair.into_inner();
 
     // Parse: class_identifier ~ cardinality? ~ relation ~ cardinality? ~ class_identifier ~ relation_label?
-    let first_class = inner
-        .next()
-        .ok_or_else(|| ParseError::Custom("relation: from class missing".into()))?
-        .as_str()
-        .trim()
-        .to_owned();
+    let first_class = strip_backticks(
+        inner
+            .next()
+            .ok_or_else(|| ParseError::Custom("relation: from class missing".into()))?
+            .as_str()
+            .trim()
+    );
 
     let mut cardinality1: Option<String> = None;
     let mut arrow_rule: Option<Pair<Rule>> = None;
@@ -306,7 +312,7 @@ fn scan_relation(pair: Pair<Rule>) -> Result<Relation, ParseError> {
                 }
             }
             Rule::class_identifier => {
-                second_class = Some(part.as_str().trim().to_owned());
+                second_class = Some(strip_backticks(part.as_str().trim()));
             }
             Rule::relation_label => {
                 // Skip the ":" and trim
@@ -367,7 +373,52 @@ fn scan_relation(pair: Pair<Rule>) -> Result<Relation, ParseError> {
 }
 
 // ────────────────────────────────────────────────────────────────────────────────
-// Second pass: apply                                                             
+// Note statement
+// ────────────────────────────────────────────────────────────────────────────────
+
+fn scan_note(pair: Pair<Rule>) -> Result<Note, ParseError> {
+    let mut target_class: Option<String> = None;
+    let mut text: Option<String> = None;
+
+    for inner in pair.into_inner() {
+        match inner.as_rule() {
+            Rule::class_identifier => target_class = Some(strip_backticks(inner.as_str())),
+            Rule::quoted_text => {
+                // Remove surrounding quotes
+                let raw = inner.as_str();
+                text = Some(raw.trim_matches('"').to_owned());
+            }
+            _ => {}
+        }
+    }
+
+    Ok(Note {
+        text: text.ok_or_else(|| ParseError::Custom("note text missing".into()))?,
+        target_class,
+    })
+}
+
+// ────────────────────────────────────────────────────────────────────────────────
+// Direction statement
+// ────────────────────────────────────────────────────────────────────────────────
+
+fn scan_direction(pair: Pair<Rule>) -> Result<Direction, ParseError> {
+    for inner in pair.into_inner() {
+        if inner.as_rule() == Rule::direction_value {
+            return match inner.as_str() {
+                "TB" | "TD" => Ok(Direction::TopBottom),
+                "BT" => Ok(Direction::BottomTop),
+                "RL" => Ok(Direction::RightLeft),
+                "LR" => Ok(Direction::LeftRight),
+                _ => Err(ParseError::Custom("invalid direction value".into())),
+            };
+        }
+    }
+    Err(ParseError::Custom("direction value missing".into()))
+}
+
+// ────────────────────────────────────────────────────────────────────────────────
+// Second pass: apply
 // ────────────────────────────────────────────────────────────────────────────────
 
 fn apply_stmt(stmt: Stmt, diagram: &mut Diagram) {
@@ -405,12 +456,23 @@ fn apply_stmt(stmt: Stmt, diagram: &mut Diagram) {
             class.members.push(member);
         }
         Stmt::Relation(r) => diagram.relations.push(r),
+        Stmt::Note(n) => diagram.notes.push(n),
+        Stmt::Direction(d) => diagram.direction = Some(d),
     }
 }
 
 // ────────────────────────────────────────────────────────────────────────────────
-// Helpers                                                                        
+// Helpers
 // ────────────────────────────────────────────────────────────────────────────────
+
+/// Strip backticks from identifiers if present
+fn strip_backticks(s: &str) -> String {
+    if s.starts_with('`') && s.ends_with('`') && s.len() > 1 {
+        s[1..s.len()-1].to_owned()
+    } else {
+        s.to_owned()
+    }
+}
 
 fn split_namespace(fq: &str) -> (&str, &str) {
     fq.rfind("::")
