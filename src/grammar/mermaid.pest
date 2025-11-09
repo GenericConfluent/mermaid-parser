@@ -80,7 +80,19 @@ diagram = {
    ~ EOI
 }
 
-statement = _{((class | relation_stmt | member_stmt | note | direction | comment) ~ NEWLINE*)*}
+// Namespace name can include dots and be recursive
+namespace_name = @{
+    backtick_identifier
+  | (plain_identifier ~ (("." | "") ~ plain_identifier)*)
+}
+
+namespace_block = {
+    "namespace" ~ namespace_name ~ "{" ~ NEWLINE* ~ namespace_statement ~ "}"
+}
+
+namespace_statement = _{((class | member_stmt | note | comment) ~ NEWLINE*)*}
+
+statement = _{((namespace_block | class | relation_stmt | member_stmt | note | direction | comment) ~ NEWLINE*)*}
 
 
 relation_stmt = {

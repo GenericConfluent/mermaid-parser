@@ -221,11 +221,26 @@ pub fn serialize_diagram(diagram: &Diagram) -> String {
         serialize_class(class, &mut output);
     }
 
-    // Serialize namespaced classes (they already have namespace in their name via ::)
-    for (_namespace_name, namespace) in namespaced_classes {
+    // Serialize namespaced classes in namespace blocks
+    for (namespace_name, namespace) in namespaced_classes {
+        writeln!(output, "namespace {} {{", escape_class_name(namespace_name)).unwrap();
         for class in namespace.classes.values() {
-            serialize_class(class, &mut output);
+            // Serialize class without namespace prefix (it's already in the block context)
+            let class_name_only = class.name.strip_prefix(&format!("{}::", namespace_name))
+                .unwrap_or(&class.name);
+            let class_name = escape_class_name(class_name_only);
+
+            // Class declaration
+            writeln!(output, "class {}", class_name).unwrap();
+
+            // Members
+            for member in &class.members {
+                write!(output, "{} : ", class_name).unwrap();
+                serialize_member(member, &mut output);
+                output.push('\n');
+            }
         }
+        output.push_str("}\n");
     }
 
     // Serialize relations

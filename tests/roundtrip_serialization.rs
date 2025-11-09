@@ -115,9 +115,27 @@ fn test_roundtrip_notes() {
     assert_eq!(diagram.notes.len(), diagram2.notes.len());
 }
 
-// Note: Namespaces are stored internally but the current parser
-// doesn't support parsing namespace syntax from input.
-// This functionality would need to be added to the grammar first.
+#[test]
+fn test_roundtrip_namespace() {
+    let input = "classDiagram\nnamespace MyNamespace {\nclass Test\nTest : +int x\n}\nclass OutsideClass\n";
+    let diagram = parse(input).unwrap();
+    let output = serialize_diagram(&diagram);
+
+    println!("Input:\n{}", input);
+    println!("Output:\n{}", output);
+
+    let diagram2 = parse(&output).unwrap();
+
+    // Should have same number of namespaces
+    assert_eq!(diagram.namespaces.len(), diagram2.namespaces.len());
+    assert!(diagram.namespaces.contains_key("MyNamespace"));
+    assert!(diagram2.namespaces.contains_key("MyNamespace"));
+
+    // Check classes in namespace
+    let ns1 = diagram.namespaces.get("MyNamespace").unwrap();
+    let ns2 = diagram2.namespaces.get("MyNamespace").unwrap();
+    assert_eq!(ns1.classes.len(), ns2.classes.len());
+}
 
 #[test]
 fn test_roundtrip_complex_diagram() {

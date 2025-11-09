@@ -96,6 +96,10 @@ fn collect_stmt(pair: Pair<Rule>, out: &mut Vec<Stmt>) -> Result<(), ParseError>
         Rule::relation_stmt => out.push(Stmt::Relation(scan_relation(pair)?)),
         Rule::note => out.push(Stmt::Note(scan_note(pair)?)),
         Rule::direction => out.push(Stmt::Direction(scan_direction(pair)?)),
+        Rule::namespace_block => {
+            // Parse namespace block and add namespace prefix to all classes inside
+            scan_namespace_block(pair, out)?;
+        }
         _ => {
             for inner in pair.into_inner() {
                 collect_stmt(inner, out)?;
@@ -482,6 +486,54 @@ fn scan_direction(pair: Pair<Rule>) -> Result<Direction, ParseError> {
         }
     }
     Err(ParseError::Custom("direction value missing".into()))
+}
+
+// ────────────────────────────────────────────────────────────────────────────────
+// Namespace block
+// ────────────────────────────────────────────────────────────────────────────────
+
+fn scan_namespace_block(pair: Pair<Rule>, out: &mut Vec<Stmt>) -> Result<(), ParseError> {
+    let mut namespace_name: Option<String> = None;
+
+    for inner in pair.into_inner() {
+        match inner.as_rule() {
+            Rule::namespace_name => {
+                namespace_name = Some(strip_backticks(inner.as_str()));
+            }
+            Rule::class => {
+                // Parse class and prefix with namespace
+                let mut class = scan_class(inner)?;
+                if let Some(ref ns) = namespace_name {
+                    // Add namespace prefix to class name
+                    class.name = format!("{}::{}", ns, class.name);
+                    class.namespace = ns.clone();
+                }
+                out.push(Stmt::Class(class));
+            }
+            Rule::member_stmt => {
+                // Parse member and prefix target with namespace
+                if let Stmt::Member { mut target, member } = scan_member_stmt(inner)? {
+                    if let Some(ref ns) = namespace_name {
+                        target = format!("{}::{}", ns, target);
+                    }
+                    out.push(Stmt::Member { target, member });
+                }
+            }
+            Rule::note => {
+                // Parse note and prefix target class with namespace if present
+                let mut note = scan_note(inner)?;
+                if let Some(ref ns) = namespace_name {
+                    if let Some(ref target_class) = note.target_class {
+                        note.target_class = Some(format!("{}::{}", ns, target_class));
+                    }
+                }
+                out.push(Stmt::Note(note));
+            }
+            _ => {}
+        }
+    }
+
+    Ok(())
 }
 
 // ────────────────────────────────────────────────────────────────────────────────
