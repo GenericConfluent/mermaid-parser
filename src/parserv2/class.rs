@@ -89,11 +89,7 @@ pub fn class_name(s: &str) -> IResult<&str, &str> {
     // Parse either backtick-escaped name or regular name
     let (s, name) = alt((
         // Backtick-escaped name (for special characters)
-        delimited(
-            char('`'),
-            take_while1(|c: char| c != '`'),
-            char('`'),
-        ),
+        delimited(char('`'), take_while1(|c: char| c != '`'), char('`')),
         // Regular alphanumeric name: must start with alphanumeric or underscore,
         // can continue with alphanumeric, underscore, or dash
         recognize(pair(
@@ -125,6 +121,245 @@ mod tests {
         let (rem, name) = class_name("\t \t Whitespace  ").expect("Failed to parse whitespace");
         assert!(rem.is_empty());
         assert_eq!(name, "Whitespace");
+    }
+
+    #[test]
+    fn test_class_visibility() {
+        // Test public visibility
+        let (rem, vis) = class_visibility("+").expect("Failed to parse public visibility");
+        assert!(rem.is_empty());
+        assert_eq!(vis, Visibility::Public);
+
+        // Test private visibility
+        let (rem, vis) = class_visibility("-").expect("Failed to parse private visibility");
+        assert!(rem.is_empty());
+        assert_eq!(vis, Visibility::Private);
+
+        // Test protected visibility
+        let (rem, vis) = class_visibility("#").expect("Failed to parse protected visibility");
+        assert!(rem.is_empty());
+        assert_eq!(vis, Visibility::Protected);
+
+        // Test package/internal visibility
+        let (rem, vis) = class_visibility("~").expect("Failed to parse package visibility");
+        assert!(rem.is_empty());
+        assert_eq!(vis, Visibility::Package);
+
+        // Test with whitespace
+        let (rem, vis) = class_visibility("  +  ").expect("Failed to parse with whitespace");
+        assert_eq!(rem.trim(), "");
+        assert_eq!(vis, Visibility::Public);
+    }
+
+    #[test]
+    fn test_class_method_param() {
+        // Test postfix notation: name: Type
+        let (rem, param) =
+            class_method_param("distance: int").expect("Failed to parse postfix parameter");
+        assert!(rem.is_empty());
+        assert_eq!(param.name, "distance");
+        assert_eq!(param.data_type, Some("int".into()));
+        assert_eq!(param.type_notation, TypeNotation::Postfix);
+
+        // Test prefix notation: Type name
+        let (rem, param) =
+            class_method_param("Food food").expect("Failed to parse prefix parameter");
+        assert!(rem.is_empty());
+        assert_eq!(param.name, "food");
+        assert_eq!(param.data_type, Some("Food".into()));
+        assert_eq!(param.type_notation, TypeNotation::Prefix);
+
+        // Test parameter with no type
+        let (rem, param) =
+            class_method_param("param").expect("Failed to parse parameter without type");
+        assert!(rem.is_empty());
+        assert_eq!(param.name, "param");
+        assert_eq!(param.data_type, None);
+        assert_eq!(param.type_notation, TypeNotation::None);
+
+        // Test with extra whitespace
+        let (rem, param) = class_method_param("  time  :  Time  ")
+            .expect("Failed to parse parameter with whitespace");
+        assert!(rem.trim().is_empty());
+        assert_eq!(param.name, "time");
+        assert_eq!(param.data_type, Some("Time".into()));
+        assert_eq!(param.type_notation, TypeNotation::Postfix);
+    }
+
+    #[test]
+    fn test_class_attribute() {
+        // Test private attribute with prefix notation: - int age
+        let (rem, attr) =
+            class_attribute("- int age").expect("Failed to parse private prefix attribute");
+        assert!(rem.is_empty());
+        assert_eq!(attr.visibility, Visibility::Private);
+        assert_eq!(attr.name, "age");
+        assert_eq!(attr.data_type, Some("int".into()));
+        assert_eq!(attr.is_static, false);
+        assert_eq!(attr.type_notation, TypeNotation::Prefix);
+
+        // Test public attribute with postfix notation: + name: String
+        let (rem, attr) =
+            class_attribute("+   name: String").expect("Failed to parse public postfix attribute");
+        assert!(rem.is_empty());
+        assert_eq!(attr.visibility, Visibility::Public);
+        assert_eq!(attr.name, "name");
+        assert_eq!(attr.data_type, Some("String".into()));
+        assert_eq!(attr.is_static, false);
+        assert_eq!(attr.type_notation, TypeNotation::Postfix);
+
+        // Test static attribute: + $ count: int
+        let (rem, attr) =
+            class_attribute("+ $ count: int").expect("Failed to parse static attribute");
+        assert!(rem.is_empty());
+        assert_eq!(attr.visibility, Visibility::Public);
+        assert_eq!(attr.name, "count");
+        assert_eq!(attr.data_type, Some("int".into()));
+        assert_eq!(attr.is_static, true);
+        assert_eq!(attr.type_notation, TypeNotation::Postfix);
+
+        // Test attribute without type: # id
+        let (rem, attr) = class_attribute("# id").expect("Failed to parse attribute without type");
+        assert!(rem.is_empty());
+        assert_eq!(attr.visibility, Visibility::Protected);
+        assert_eq!(attr.name, "id");
+        assert_eq!(attr.data_type, None);
+        assert_eq!(attr.is_static, false);
+        assert_eq!(attr.type_notation, TypeNotation::None);
+
+        // Test attribute without visibility (unspecified)
+        let (rem, attr) =
+            class_attribute("value: double").expect("Failed to parse attribute without visibility");
+        assert!(rem.is_empty());
+        assert_eq!(attr.visibility, Visibility::Unspecified);
+        assert_eq!(attr.name, "value");
+        assert_eq!(attr.data_type, Some("double".into()));
+        assert_eq!(attr.type_notation, TypeNotation::Postfix);
+    }
+
+    #[test]
+    fn test_class_method() {
+        // Test public method with prefix return and parameter: + void swim(distance: int)
+        let (rem, method) = class_method("+ void swim(distance: int)")
+            .expect("Failed to parse method with prefix return");
+        assert!(rem.is_empty());
+        assert_eq!(method.visibility, Visibility::Public);
+        assert_eq!(method.name, "swim");
+        assert_eq!(method.parameters.len(), 1);
+        assert_eq!(method.parameters[0].name, "distance");
+        assert_eq!(method.parameters[0].data_type, Some("int".into()));
+        assert_eq!(method.return_type, Some("void".into()));
+        assert_eq!(method.is_static, false);
+        assert_eq!(method.is_abstract, false);
+        assert_eq!(method.return_type_notation, TypeNotation::Prefix);
+
+        // Test private method with postfix return: - digest(Food food) void
+        let (rem, method) =
+            class_method("-  digest(Food food) void").expect("Failed to parse method with postfix return");
+        assert!(rem.is_empty());
+        assert_eq!(method.visibility, Visibility::Private);
+        assert_eq!(method.name, "digest");
+        assert_eq!(method.parameters.len(), 1);
+        assert_eq!(method.parameters[0].name, "food");
+        assert_eq!(method.parameters[0].data_type, Some("Food".into()));
+        assert_eq!(method.return_type, Some("void".into()));
+        assert_eq!(method.is_static, false);
+        assert_eq!(method.is_abstract, false);
+        assert_eq!(method.return_type_notation, TypeNotation::Postfix);
+
+        // Test method without visibility and multiple parameters
+        let (rem, method) = class_method("sleep(time: Time, Hemisphere hemisphere) Int")
+            .expect("Failed to parse method with multiple parameters");
+        assert!(rem.is_empty());
+        assert_eq!(method.visibility, Visibility::Unspecified);
+        assert_eq!(method.name, "sleep");
+        assert_eq!(method.parameters.len(), 2);
+        assert_eq!(method.parameters[0].name, "time");
+        assert_eq!(method.parameters[0].data_type, Some("Time".into()));
+        assert_eq!(method.parameters[1].name, "hemisphere");
+        assert_eq!(method.parameters[1].data_type, Some("Hemisphere".into()));
+        assert_eq!(method.return_type, Some("Int".into()));
+        assert_eq!(method.return_type_notation, TypeNotation::Postfix);
+
+        // Test static method: + $ getInstance() Singleton
+        let (rem, method) =
+            class_method("+ $ getInstance() Singleton").expect("Failed to parse static method");
+        assert!(rem.is_empty());
+        assert_eq!(method.visibility, Visibility::Public);
+        assert_eq!(method.name, "getInstance");
+        assert_eq!(method.parameters.len(), 0);
+        assert_eq!(method.return_type, Some("Singleton".into()));
+        assert_eq!(method.is_static, true);
+        assert_eq!(method.is_abstract, false);
+
+        // Test abstract method: + * calculate() void
+        let (rem, method) =
+            class_method("+ * calculate() void").expect("Failed to parse abstract method");
+        assert!(rem.is_empty());
+        assert_eq!(method.visibility, Visibility::Public);
+        assert_eq!(method.name, "calculate");
+        assert_eq!(method.is_static, false);
+        assert_eq!(method.is_abstract, true);
+
+        // Test method without return type: # process(data)
+        let (rem, method) =
+            class_method("# process(data)").expect("Failed to parse method without return type");
+        assert!(rem.is_empty());
+        assert_eq!(method.visibility, Visibility::Protected);
+        assert_eq!(method.name, "process");
+        assert_eq!(method.parameters.len(), 1);
+        assert_eq!(method.parameters[0].name, "data");
+        assert_eq!(method.return_type, None);
+        assert_eq!(method.return_type_notation, TypeNotation::None);
+
+        // Test method with no parameters: ~ getValue() int
+        let (rem, method) =
+            class_method("~ getValue() int").expect("Failed to parse method with no parameters");
+        assert!(rem.is_empty());
+        assert_eq!(method.visibility, Visibility::Package);
+        assert_eq!(method.name, "getValue");
+        assert_eq!(method.parameters.len(), 0);
+        assert_eq!(method.return_type, Some("int".into()));
+    }
+
+    #[test]
+    fn test_class_member_stmt() {
+        // Test parsing an attribute member
+        let (rem, member) =
+            class_member_stmt("- int age").expect("Failed to parse attribute member");
+        assert!(rem.is_empty());
+        match member {
+            Member::Attribute(attr) => {
+                assert_eq!(attr.visibility, Visibility::Private);
+                assert_eq!(attr.name, "age");
+                assert_eq!(attr.data_type, Some("int".into()));
+            }
+            _ => panic!("Expected Attribute member"),
+        }
+
+        // Test parsing a method member
+        let (rem, member) =
+            class_member_stmt("+ void swim(distance: int)").expect("Failed to parse method member");
+        assert!(rem.is_empty());
+        match member {
+            Member::Method(method) => {
+                assert_eq!(method.visibility, Visibility::Public);
+                assert_eq!(method.name, "swim");
+                assert_eq!(method.parameters.len(), 1);
+            }
+            _ => panic!("Expected Method member"),
+        }
+
+        // Test with leading whitespace
+        let (rem, member) =
+            class_member_stmt("    + name: String").expect("Failed to parse member with whitespace");
+        assert!(rem.trim().is_empty());
+        match member {
+            Member::Attribute(attr) => {
+                assert_eq!(attr.name, "name");
+            }
+            _ => panic!("Expected Attribute member"),
+        }
     }
 
     #[test]
