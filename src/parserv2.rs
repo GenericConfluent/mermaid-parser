@@ -1,9 +1,12 @@
+use std::collections::HashMap;
+
 use nom::{
-    self, IResult, PResult, Parser,
+    self, PResult, Parser,
     branch::alt,
     bytes::complete::*,
     character::{complete::line_ending, none_of},
     combinator::opt,
+    error::ParseError,
 };
 
 use crate::types::{Diagram, Direction, Note};
@@ -11,6 +14,26 @@ use crate::types::{Diagram, Direction, Note};
 pub mod class;
 pub mod frontmatter;
 pub mod namespace;
+
+#[derive(thiserror::Error, Debug, derive_more::From)]
+pub enum MermaidParseError {
+    #[error("{0:?}")]
+    Nom(nom::error::ErrorKind),
+    #[error("{0}")]
+    SerdeYml(serde_yml::Error),
+}
+
+impl<I> ParseError<I> for MermaidParseError {
+    fn from_error_kind(input: I, kind: nom::error::ErrorKind) -> Self {
+        MermaidParseError::Nom(kind)
+    }
+
+    fn append(input: I, kind: nom::error::ErrorKind, other: Self) -> Self {
+        other
+    }
+}
+
+type IResult<I, O> = nom::IResult<I, O, MermaidParseError>;
 
 /// Parse mermaid line by line, keeping lines we failed to parse so they can be copied to the
 /// output. This parser has three contexts: - Frontmatter - Namespace - Class We start out in
@@ -20,27 +43,37 @@ pub mod namespace;
 /// context we can only enter the class context.
 ///
 /// This parser was maded referencing version 11.12.0 of the Mermaid CLI. If there is a frontmatter
-/// the first line of the file MUST be "---" unindented. We cannot put comments before it. When the
-/// frontmatter ends we can have either comments or a declaration of the diagram type.
-pub fn parse_mermaid(mut text: &str) -> IResult<Diagram, &str> {
+pub fn parse_mermaid(text: &str) -> Result<Diagram, MermaidParseError> {
     // First line MUST be --- unindented if we have a frontmatter
-    text = if let Ok((rem, yaml)) = frontmatter::frontmatter(text) {
-        // TODO: Insert YAML
-        rem
+    let (text, yaml) = if let Ok((rem, yaml)) = frontmatter::frontmatter(text) {
+        (rem, Some(yaml))
     } else {
-        text
+        (text, None)
     };
 
     // Then we can have comments until a diagram definition
 
-    todo!()
+    // Then we can parse the body of the diagram
+    let mut namespaces = HashMap::new();
+    let mut relations = Vec::new();
+    let mut notes = Vec::new();
+    let mut direction = None;
+    alt((class::class_stmt, namespace::namespace_stmt));
+
+    Ok(Diagram {
+        namespaces,
+        relations,
+        notes,
+        direction,
+        yaml,
+    })
 }
 
-pub fn delete_match<I, O>(val: (I, O)) -> (I, ()) {
+fn delete_match<I, O>(val: (I, O)) -> (I, ()) {
     (val.0, ())
 }
 
-// Orignal parsing for these are done with the following two regex:
+// Original parsing for these are done with the following two regex:
 // - \%\%[^\n]*(\r?\n)*
 // - \%\%(?!\{)*[^\n]*(\r?\n?)+
 pub fn stmt_comment(s: &str) -> IResult<&str, ()> {

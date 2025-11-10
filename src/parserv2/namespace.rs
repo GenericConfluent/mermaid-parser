@@ -1,6 +1,10 @@
-use nom::IResult;
+use super::IResult;
 
-use crate::types::{Direction, Note};
+use crate::types::{Direction, Namespace, Note};
+
+pub fn namespace_stmt(s: &str) -> IResult<&str, Namespace> {
+    todo!()
+}
 
 pub fn namespace_context() {
     todo!()
