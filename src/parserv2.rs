@@ -80,6 +80,15 @@ pub fn parse_mermaid(text: &str) -> Result<Diagram, MermaidParseError> {
 
     // Then we can parse the body of the diagram
     let mut namespaces: HashMap<Cow<str>, Namespace> = HashMap::new();
+    // Initialize the default namespace
+    namespaces.insert(
+        Cow::Borrowed(types::DEFAULT_NAMESPACE),
+        Namespace {
+            name: Cow::Borrowed(types::DEFAULT_NAMESPACE),
+            classes: HashMap::new(),
+            children: HashMap::new(),
+        },
+    );
     let mut relations = Vec::new();
     let mut notes = Vec::new();
     let mut direction = None;

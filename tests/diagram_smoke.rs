@@ -16,7 +16,7 @@ class Tom
 class Marc
 "#;
 
-    let diagram = mermaid_parser::parser::parse(mermaid).unwrap();
+    let diagram = mermaid_parser::parserv2::parse_mermaid(mermaid).unwrap();
     println!("{:?}", diagram);
     let default_ns = diagram
         .namespaces

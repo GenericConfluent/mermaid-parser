@@ -1,4 +1,4 @@
-use mermaid_parser::parser::parse;
+use mermaid_parser::parserv2::parse_mermaid as parse;
 use mermaid_parser::serializer::serialize_diagram;
 
 #[test]

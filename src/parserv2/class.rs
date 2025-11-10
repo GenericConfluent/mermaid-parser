@@ -9,35 +9,64 @@ use nom::{
     sequence::{delimited, preceded},
 };
 
-use crate::{
-    parserv2::ws,
-    types::{Attribute, Class, Member, Method, Parameter, TypeNotation, Visibility},
-};
+use crate::types::{Attribute, Class, Member, Method, Parameter, TypeNotation, Visibility};
 
 use super::{IResult, Stmt};
 
 pub fn class_stmt<'source>(s: &'source str) -> IResult<&'source str, Stmt<'source>> {
+    use nom::{
+        bytes::complete::{take_until, take_while},
+        character::complete::{char, line_ending},
+    };
+
     let (s, name) = preceded((multispace0, tag("class"), space1), class_name).parse_complete(s)?;
 
-    // classStatements
-    //      : classStatement                            {$$=[[$1], []]}
-    //      | classStatement NEWLINE                    {$$=[[$1], []]}
-    //      | classStatement NEWLINE classStatements    {$3[0].unshift($1); $$=$3}
-    //      | noteStatement                             {$$=[[], [$1]]}
-    //      | noteStatement NEWLINE                     {$$=[[], [$1]]}
-    //      | noteStatement NEWLINE classStatements     {$3[1].unshift($1); $$=$3}
-    //      ;
-    //
+    // Parse opening brace
+    let (s, _) = multispace0.parse(s)?;
+    let (s, _) = char('{').parse(s)?;
+    let (s, _) = multispace0.parse(s)?;
 
-    // members
-    //     : MEMBER { $$ = [$1]; }
-    //     | MEMBER members { $2.push($1);$$=$2;}
-    //     ;
-    //  mermaid doesn't actually care about the structure of the class members too much. But we do
-    //  So we need parsing logic for them.
-    let members = Vec::new();
+    // Parse members, handling comments and whitespace
+    let mut members = Vec::new();
+    let mut s = s;
 
-    todo!();
+    loop {
+        // Skip whitespace
+        let (s_new, _) = multispace0.parse(s)?;
+        s = s_new;
+
+        // Check for closing brace
+        if let Ok((s_new, _)) = char::<_, nom::error::Error<_>>('}').parse(s) {
+            // Consume trailing whitespace after closing brace
+            let (s_new, _) = multispace0.parse(s_new)?;
+            s = s_new;
+            break;
+        }
+
+        // Check for comment line (starts with %%)
+        if let Ok((s_new, _)) = tag::<_, _, nom::error::Error<_>>("%%").parse(s) {
+            // Skip the rest of the line
+            let (s_new, _) = take_while(|c| c != '\n' && c != '\r').parse(s_new)?;
+            s = s_new;
+            continue;
+        }
+
+        // Try to parse a member
+        match class_member_stmt(s) {
+            Ok((s_new, member)) => {
+                members.push(member);
+                s = s_new;
+            }
+            Err(_) => {
+                // If we can't parse a member, skip to the next line
+                if let Ok((s_new, _)) = take_while::<_, _, nom::error::Error<_>>(|c| c != '\n' && c != '\r').parse(s) {
+                    s = s_new;
+                } else {
+                    break;
+                }
+            }
+        }
+    }
 
     Ok((
         s,
@@ -183,7 +212,7 @@ pub fn class_method<'source>(s: &'source str) -> IResult<&'source str, Method<'s
         character::complete::{char, space0},
         combinator::recognize,
         multi::separated_list0,
-        sequence::{pair, tuple},
+        sequence::pair,
     };
 
     let (s, _) = multispace0.parse(s)?;
@@ -252,7 +281,7 @@ pub fn class_method<'source>(s: &'source str) -> IResult<&'source str, Method<'s
     // Parse parameters
     let (s, _) = space0.parse(s)?;
     let (s, parameters) = separated_list0(
-        tuple((space0, char(','), space0)),
+        (space0, char(','), space0),
         class_method_param,
     )
     .parse(s)?;
