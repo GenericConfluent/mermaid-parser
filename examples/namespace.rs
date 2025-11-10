@@ -56,10 +56,19 @@ note "Complex namespace example"
     let diagram2 = parse(&output).expect("Round-trip parsing failed");
 
     println!("\n✓ Round-trip verification passed!");
-    println!("  Namespaces: {} -> {}",
-        diagram.namespaces.len(), diagram2.namespaces.len());
-    println!("  Relations: {} -> {}",
-        diagram.relations.len(), diagram2.relations.len());
-    println!("  Notes: {} -> {}",
-        diagram.notes.len(), diagram2.notes.len());
+    println!(
+        "  Namespaces: {} -> {}",
+        diagram.namespaces.len(),
+        diagram2.namespaces.len()
+    );
+    println!(
+        "  Relations: {} -> {}",
+        diagram.relations.len(),
+        diagram2.relations.len()
+    );
+    println!(
+        "  Notes: {} -> {}",
+        diagram.notes.len(),
+        diagram2.notes.len()
+    );
 }

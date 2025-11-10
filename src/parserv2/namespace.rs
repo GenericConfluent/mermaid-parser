@@ -1,24 +1,185 @@
-use super::{IResult, Stmt};
-use crate::types::{Direction, Namespace, Note};
+use std::borrow::Cow;
+use std::collections::HashMap;
+
+use nom::{
+    branch::alt,
+    bytes::complete::{tag, take_while, take_while1},
+    character::complete::{char, multispace0, space0, space1},
+    combinator::{opt, recognize},
+    sequence::{delimited, pair, preceded},
+    Parser,
+};
+
+use super::{class, IResult, MermaidParseError, Stmt};
+use crate::types::{Class, Direction, Member, Namespace, Note};
 
 pub fn namespace_stmt<'source>(s: &'source str) -> IResult<&'source str, Stmt<'source>> {
-    todo!()
+    let (s, _) = multispace0.parse(s)?;
+
+    // Parse "namespace Name"
+    let (s, name) = namespace_identifier(s)?;
+
+    // Parse opening brace
+    let (s, _) = multispace0.parse(s)?;
+    let (s, _) = char('{').parse(s)?;
+    let (s, _) = multispace0.parse(s)?;
+
+    // Parse class declarations and member statements within the namespace
+    let mut classes: HashMap<Cow<'source, str>, Class<'source>> = HashMap::new();
+    let mut s = s;
+
+    loop {
+        // Skip whitespace
+        let (s_new, _) = multispace0.parse(s)?;
+        s = s_new;
+
+        // Check for closing brace
+        if let Ok((s_new, _)) = char::<_, nom::error::Error<_>>('}').parse(s) {
+            let (s_new, _) = multispace0.parse(s_new)?;
+            s = s_new;
+            break;
+        }
+
+        // Check for comment line (starts with %%)
+        if let Ok((s_new, _)) = tag::<_, _, nom::error::Error<_>>("%%").parse(s) {
+            // Skip the rest of the line
+            let (s_new, _) = take_while(|c| c != '\n' && c != '\r').parse(s_new)?;
+            s = s_new;
+            continue;
+        }
+
+        // Try to parse "class ClassName" declaration
+        if let Ok((s_new, _)) = tag::<_, _, nom::error::Error<_>>("class").parse(s) {
+            let (s_new, _) = space1.parse(s_new)?;
+            let (s_new, class_name) = class::class_name(s_new)?;
+
+            // Insert empty class if it doesn't exist
+            classes.entry(Cow::Borrowed(class_name)).or_insert_with(|| Class {
+                name: Cow::Borrowed(class_name),
+                annotations: Vec::new(),
+                members: Vec::new(),
+            });
+
+            s = s_new;
+            continue;
+        }
+
+        // Try to parse "ClassName : member" statement
+        if let Ok((s_new, class_name)) = class::class_name(s) {
+            let (s_new, _) = space0.parse(s_new)?;
+            if let Ok((s_new2, _)) = char::<_, MermaidParseError>(':').parse(s_new) {
+                // Parse the member
+                let (s_new3, _) = space0.parse(s_new2)?;
+                if let Ok((s_new4, member)) = class::class_member_stmt(s_new3) {
+                    // Add member to the class
+                    if let Some(class) = classes.get_mut(&Cow::Borrowed(class_name)) {
+                        class.members.push(member);
+                    }
+                    s = s_new4;
+                    continue;
+                }
+            }
+        }
+
+        // If we can't parse anything, skip to the next line
+        if let Ok((s_new, _)) =
+            take_while::<_, _, nom::error::Error<_>>(|c| c != '\n' && c != '\r').parse(s)
+        {
+            s = s_new;
+        } else {
+            break;
+        }
+    }
+
+    Ok((
+        s,
+        Stmt::Namespace(Namespace {
+            name: Cow::Borrowed(name),
+            classes,
+            children: HashMap::new(),
+        }),
+    ))
 }
 
 pub fn namespace_identifier<'source>(s: &'source str) -> IResult<&'source str, &'source str> {
-    todo!()
+    preceded((multispace0, tag("namespace"), space1), namespace_name).parse(s)
 }
 
 pub fn namespace_name<'source>(s: &'source str) -> IResult<&'source str, &'source str> {
-    todo!()
+    let (s, _) = multispace0.parse(s)?;
+
+    // Parse identifier: alphanumeric, underscore, dash
+    let (s, name) = recognize(pair(
+        take_while1(|c: char| c.is_alphanumeric() || c == '_'),
+        take_while(|c: char| c.is_alphanumeric() || c == '_' || c == '-'),
+    ))
+    .parse(s)?;
+
+    let (s, _) = multispace0.parse(s)?;
+
+    Ok((s, name))
 }
 
 pub fn stmt_note<'source>(s: &'source str) -> IResult<&'source str, Note<'source>> {
-    todo!()
+    let (s, _) = multispace0.parse(s)?;
+
+    // Try to parse "note for ClassName "text""
+    if let Ok((s, _)) = tag::<_, _, nom::error::Error<_>>("note").parse(s) {
+        let (s, _) = space1.parse(s)?;
+
+        // Check if it's "for ClassName"
+        if let Ok((s, _)) = tag::<_, _, nom::error::Error<_>>("for").parse(s) {
+            let (s, _) = space1.parse(s)?;
+
+            // Parse class name (can use class_name parser)
+            let (s, class_name) = class::class_name(s)?;
+            let (s, _) = space0.parse(s)?;
+
+            // Parse the note text in quotes
+            let (s, text) = delimited(char('"'), take_while(|c| c != '"'), char('"')).parse(s)?;
+
+            return Ok((
+                s,
+                Note {
+                    text: Cow::Borrowed(text),
+                    target_class: Some(Cow::Borrowed(class_name)),
+                },
+            ));
+        }
+
+        // Otherwise it's a general note: "note "text""
+        let (s, text) = delimited(char('"'), take_while(|c| c != '"'), char('"')).parse(s)?;
+
+        return Ok((
+            s,
+            Note {
+                text: Cow::Borrowed(text),
+                target_class: None,
+            },
+        ));
+    }
+
+    Err(nom::Err::Error(MermaidParseError::ExpectedStmt))
 }
 
 pub fn stmt_direction(s: &str) -> IResult<&str, Direction> {
-    todo!()
+    let (s, _) = multispace0.parse(s)?;
+    let (s, _) = tag("direction").parse(s)?;
+    let (s, _) = space1.parse(s)?;
+
+    let (s, dir_str) = alt((tag("TB"), tag("TD"), tag("BT"), tag("LR"), tag("RL"))).parse(s)?;
+
+    let direction = match dir_str {
+        "TB" | "TD" => Direction::TopBottom,
+        "BT" => Direction::BottomTop,
+        "LR" => Direction::LeftRight,
+        "RL" => Direction::RightLeft,
+        _ => unreachable!(),
+    };
+
+    let (s, _) = multispace0.parse(s)?;
+
+    Ok((s, direction))
 }
 
 #[cfg(test)]
@@ -241,7 +402,7 @@ class Outside"#;
             .expect("Failed to parse general note");
         assert!(rem.is_empty());
         assert_eq!(note.text, "This is a general note");
-        assert_eq!(note.class_name, None);
+        assert_eq!(note.target_class, None);
     }
 
     #[test]
@@ -251,7 +412,7 @@ class Outside"#;
             .expect("Failed to parse note for class");
         assert!(rem.is_empty());
         assert_eq!(note.text, "Vehicles are fast");
-        assert_eq!(note.class_name, Some("Vehicle".into()));
+        assert_eq!(note.target_class, Some("Vehicle".into()));
     }
 
     #[test]
