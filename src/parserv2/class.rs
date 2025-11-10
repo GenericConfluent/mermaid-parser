@@ -11,7 +11,7 @@ use nom::{
 
 use crate::{
     parserv2::ws,
-    types::{Attribute, Class, Member, Method, Parameter, Visibility},
+    types::{Attribute, Class, Member, Method, Parameter, TypeNotation, Visibility},
 };
 
 use super::{IResult, Stmt};
@@ -49,24 +49,323 @@ pub fn class_stmt<'source>(s: &'source str) -> IResult<&'source str, Stmt<'sourc
     ))
 }
 
-pub fn class_member_stmt(s: &str) -> IResult<&str, Member> {
-    todo!()
+pub fn class_member_stmt<'source>(s: &'source str) -> IResult<&'source str, Member<'source>> {
+    // Try to parse as a method first (methods have parentheses), then fallback to attribute
+    alt((
+        |s| class_method(s).map(|(rem, method)| (rem, Member::Method(method))),
+        |s| class_attribute(s).map(|(rem, attr)| (rem, Member::Attribute(attr))),
+    ))
+    .parse(s)
 }
 
 pub fn class_visibility(s: &str) -> IResult<&str, Visibility> {
-    todo!()
+    use nom::character::complete::one_of;
+
+    let (s, _) = multispace0.parse(s)?;
+
+    let (s, vis_char) = one_of("+-#~").parse(s)?;
+
+    let visibility = match vis_char {
+        '+' => Visibility::Public,
+        '-' => Visibility::Private,
+        '#' => Visibility::Protected,
+        '~' => Visibility::Package,
+        _ => unreachable!(),
+    };
+
+    let (s, _) = multispace0.parse(s)?;
+
+    Ok((s, visibility))
 }
 
-pub fn class_attribute(s: &str) -> IResult<&str, Attribute> {
-    todo!()
+pub fn class_attribute<'source>(s: &'source str) -> IResult<&'source str, Attribute<'source>> {
+    use nom::{
+        bytes::complete::take_while,
+        character::complete::{char, space0},
+        combinator::recognize,
+        sequence::pair,
+    };
+
+    let (s, _) = multispace0.parse(s)?;
+
+    // Optional visibility
+    let (s, visibility) = opt(class_visibility).parse(s)?;
+    let visibility = visibility.unwrap_or(Visibility::Unspecified);
+
+    let (s, _) = space0.parse(s)?;
+
+    // Optional static modifier ($)
+    let (s, is_static) = opt(|s| {
+        let (s, _) = char('$').parse(s)?;
+        let (s, _) = space0.parse(s)?;
+        Ok((s, true))
+    })
+    .parse(s)?;
+    let is_static = is_static.unwrap_or(false);
+
+    let (s, _) = space0.parse(s)?;
+
+    // Try to parse as postfix notation (name: Type) or prefix notation (Type name) or just name
+    // First, get the first identifier
+    let (s, first_token) = recognize(pair(
+        take_while1(|c: char| c.is_alphanumeric() || c == '_'),
+        take_while(|c: char| c.is_alphanumeric() || c == '_' || c == '-'),
+    ))
+    .parse(s)?;
+
+    let (s, _) = space0.parse(s)?;
+
+    // Check if there's a colon (postfix notation)
+    let (s, has_colon) = opt(char(':')).parse(s)?;
+
+    if has_colon.is_some() {
+        // Postfix notation: name: Type
+        let (s, _) = space0.parse(s)?;
+        let (s, type_token) = opt(recognize(pair(
+            take_while1(|c: char| c.is_alphanumeric() || c == '_'),
+            take_while(|c: char| c.is_alphanumeric() || c == '_' || c == '-'),
+        )))
+        .parse(s)?;
+
+        Ok((
+            s,
+            Attribute {
+                visibility,
+                name: Cow::Borrowed(first_token),
+                data_type: type_token.map(Cow::Borrowed),
+                is_static,
+                type_notation: if type_token.is_some() {
+                    TypeNotation::Postfix
+                } else {
+                    TypeNotation::None
+                },
+            },
+        ))
+    } else {
+        // Check if there's a second token (prefix notation: Type name)
+        let (s, second_token) = opt(recognize(pair(
+            take_while1(|c: char| c.is_alphanumeric() || c == '_'),
+            take_while(|c: char| c.is_alphanumeric() || c == '_' || c == '-'),
+        )))
+        .parse(s)?;
+
+        if let Some(name_token) = second_token {
+            // Prefix notation: Type name
+            Ok((
+                s,
+                Attribute {
+                    visibility,
+                    name: Cow::Borrowed(name_token),
+                    data_type: Some(Cow::Borrowed(first_token)),
+                    is_static,
+                    type_notation: TypeNotation::Prefix,
+                },
+            ))
+        } else {
+            // Just a name with no type
+            Ok((
+                s,
+                Attribute {
+                    visibility,
+                    name: Cow::Borrowed(first_token),
+                    data_type: None,
+                    is_static,
+                    type_notation: TypeNotation::None,
+                },
+            ))
+        }
+    }
 }
 
-pub fn class_method(s: &str) -> IResult<&str, Method> {
-    todo!()
+pub fn class_method<'source>(s: &'source str) -> IResult<&'source str, Method<'source>> {
+    use nom::{
+        bytes::complete::take_while,
+        character::complete::{char, space0},
+        combinator::recognize,
+        multi::separated_list0,
+        sequence::{pair, tuple},
+    };
+
+    let (s, _) = multispace0.parse(s)?;
+
+    // Optional visibility
+    let (s, visibility) = opt(class_visibility).parse(s)?;
+    let visibility = visibility.unwrap_or(Visibility::Unspecified);
+
+    let (s, _) = space0.parse(s)?;
+
+    // Optional static modifier ($)
+    let (s, is_static) = opt(|s| {
+        let (s, _) = char('$').parse(s)?;
+        let (s, _) = space0.parse(s)?;
+        Ok((s, true))
+    })
+    .parse(s)?;
+    let is_static = is_static.unwrap_or(false);
+
+    let (s, _) = space0.parse(s)?;
+
+    // Optional abstract modifier (*)
+    let (s, is_abstract) = opt(|s| {
+        let (s, _) = char('*').parse(s)?;
+        let (s, _) = space0.parse(s)?;
+        Ok((s, true))
+    })
+    .parse(s)?;
+    let is_abstract = is_abstract.unwrap_or(false);
+
+    let (s, _) = space0.parse(s)?;
+
+    // Check if there's a return type before the method name (prefix notation)
+    // We need to look ahead to see if there's an identifier followed by '('
+    // Let's try to parse: [Type] name(params) [ReturnType]
+
+    // Try to get first token
+    let (s, first_token) = recognize(pair(
+        take_while1(|c: char| c.is_alphanumeric() || c == '_'),
+        take_while(|c: char| c.is_alphanumeric() || c == '_' || c == '-'),
+    ))
+    .parse(s)?;
+
+    let (s, _) = space0.parse(s)?;
+
+    // Check if next char is '(' - if so, first_token is the method name
+    let (s, is_paren) = opt(char('(')).parse(s)?;
+
+    let (s, prefix_return_type, method_name) = if is_paren.is_some() {
+        // No prefix return type, first_token is method name
+        (s, None, first_token)
+    } else {
+        // first_token might be a return type, get the next token as method name
+        let (s, name_token) = recognize(pair(
+            take_while1(|c: char| c.is_alphanumeric() || c == '_'),
+            take_while(|c: char| c.is_alphanumeric() || c == '_' || c == '-'),
+        ))
+        .parse(s)?;
+
+        let (s, _) = space0.parse(s)?;
+        let (s, _) = char('(').parse(s)?;
+
+        (s, Some(first_token), name_token)
+    };
+
+    // Parse parameters
+    let (s, _) = space0.parse(s)?;
+    let (s, parameters) = separated_list0(
+        tuple((space0, char(','), space0)),
+        class_method_param,
+    )
+    .parse(s)?;
+
+    let (s, _) = space0.parse(s)?;
+    let (s, _) = char(')').parse(s)?;
+    let (s, _) = space0.parse(s)?;
+
+    // Check for postfix return type
+    let (s, postfix_return_type) = opt(recognize(pair(
+        take_while1(|c: char| c.is_alphanumeric() || c == '_'),
+        take_while(|c: char| c.is_alphanumeric() || c == '_' || c == '-'),
+    )))
+    .parse(s)?;
+
+    // Determine return type and notation
+    let (return_type, return_type_notation) = if let Some(prefix_type) = prefix_return_type {
+        (Some(Cow::Borrowed(prefix_type)), TypeNotation::Prefix)
+    } else if let Some(postfix_type) = postfix_return_type {
+        (Some(Cow::Borrowed(postfix_type)), TypeNotation::Postfix)
+    } else {
+        (None, TypeNotation::None)
+    };
+
+    Ok((
+        s,
+        Method {
+            visibility,
+            name: Cow::Borrowed(method_name),
+            parameters,
+            return_type,
+            is_static,
+            is_abstract,
+            return_type_notation,
+        },
+    ))
 }
 
-pub fn class_method_param(s: &str) -> IResult<&str, Parameter> {
-    todo!()
+pub fn class_method_param<'source>(
+    s: &'source str,
+) -> IResult<&'source str, Parameter<'source>> {
+    use nom::{
+        bytes::complete::take_while,
+        character::complete::{char, space0},
+        combinator::recognize,
+        sequence::pair,
+    };
+
+    let (s, _) = space0.parse(s)?;
+
+    // Get first identifier
+    let (s, first_token) = recognize(pair(
+        take_while1(|c: char| c.is_alphanumeric() || c == '_'),
+        take_while(|c: char| c.is_alphanumeric() || c == '_' || c == '-'),
+    ))
+    .parse(s)?;
+
+    let (s, _) = space0.parse(s)?;
+
+    // Check if there's a colon (postfix notation: name: Type)
+    let (s, has_colon) = opt(char(':')).parse(s)?;
+
+    if has_colon.is_some() {
+        // Postfix notation
+        let (s, _) = space0.parse(s)?;
+        let (s, type_token) = opt(recognize(pair(
+            take_while1(|c: char| c.is_alphanumeric() || c == '_'),
+            take_while(|c: char| c.is_alphanumeric() || c == '_' || c == '-'),
+        )))
+        .parse(s)?;
+
+        Ok((
+            s,
+            Parameter {
+                name: Cow::Borrowed(first_token),
+                data_type: type_token.map(Cow::Borrowed),
+                type_notation: if type_token.is_some() {
+                    TypeNotation::Postfix
+                } else {
+                    TypeNotation::None
+                },
+            },
+        ))
+    } else {
+        // Check for second token (prefix notation: Type name)
+        let (s, second_token) = opt(recognize(pair(
+            take_while1(|c: char| c.is_alphanumeric() || c == '_'),
+            take_while(|c: char| c.is_alphanumeric() || c == '_' || c == '-'),
+        )))
+        .parse(s)?;
+
+        if let Some(name_token) = second_token {
+            // Prefix notation: Type name
+            Ok((
+                s,
+                Parameter {
+                    name: Cow::Borrowed(name_token),
+                    data_type: Some(Cow::Borrowed(first_token)),
+                    type_notation: TypeNotation::Prefix,
+                },
+            ))
+        } else {
+            // Just a name with no type
+            Ok((
+                s,
+                Parameter {
+                    name: Cow::Borrowed(first_token),
+                    data_type: None,
+                    type_notation: TypeNotation::None,
+                },
+            ))
+        }
+    }
 }
 
 // Originally this is:
