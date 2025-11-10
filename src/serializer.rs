@@ -144,8 +144,16 @@ fn serialize_relation(relation: &Relation, output: &mut String) {
         (RelationKind::Composition, LineStyle::Dotted) => output.push_str("..*"),
         (RelationKind::Inheritance, LineStyle::Solid) => output.push_str("--|>"),
         (RelationKind::Inheritance, LineStyle::Dotted) => output.push_str("..|>"),
+        (RelationKind::Association, LineStyle::Solid) => output.push_str("-->"),
+        (RelationKind::Association, LineStyle::Dotted) => output.push_str("..>"),
         (RelationKind::Dependency, LineStyle::Solid) => output.push_str("-->"),
         (RelationKind::Dependency, LineStyle::Dotted) => output.push_str("..>"),
+        (RelationKind::SolidLink, LineStyle::Solid) => output.push_str("--"),
+        (RelationKind::SolidLink, LineStyle::Dotted) => output.push_str(".."),
+        (RelationKind::Realization, LineStyle::Solid) => output.push_str("--|>"),
+        (RelationKind::Realization, LineStyle::Dotted) => output.push_str("..|>"),
+        (RelationKind::DashLink, LineStyle::Solid) => output.push_str("--"),
+        (RelationKind::DashLink, LineStyle::Dotted) => output.push_str(".."),
         (RelationKind::Lollipop, _) => output.push_str("--o"),
     }
 

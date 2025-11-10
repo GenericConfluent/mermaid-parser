@@ -90,7 +90,7 @@ pub fn parse_mermaid(text: &str) -> Result<Diagram, MermaidParseError> {
         let result = alt((
             class::class_stmt,
             namespace::namespace_stmt,
-            relation_stmt,
+            relation::relation_stmt,
             note_stmt,
             direction_stmt,
         ))
