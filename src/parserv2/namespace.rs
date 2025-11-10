@@ -1,8 +1,7 @@
-use super::IResult;
-
+use super::{IResult, Stmt};
 use crate::types::{Direction, Namespace, Note};
 
-pub fn namespace_stmt(s: &str) -> IResult<&str, Namespace> {
+pub fn namespace_stmt(s: &str) -> IResult<&str, Stmt> {
     todo!()
 }
 

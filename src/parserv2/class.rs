@@ -1,8 +1,8 @@
 use crate::types::Class;
 
-use super::IResult;
+use super::{IResult, Stmt};
 
-pub fn class_stmt(s: &str) -> IResult<&str, Class> {
+pub fn class_stmt(s: &str) -> IResult<&str, Stmt> {
     todo!()
 }
 

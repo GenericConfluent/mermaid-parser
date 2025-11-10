@@ -4,12 +4,16 @@ use nom::{
     self, PResult, Parser,
     branch::alt,
     bytes::complete::*,
-    character::{complete::line_ending, none_of},
+    character::{
+        complete::{line_ending, multispace0},
+        none_of,
+    },
     combinator::opt,
     error::ParseError,
+    sequence::delimited,
 };
 
-use crate::types::{Diagram, Direction, Note};
+use crate::types::{self, Class, Diagram, Direction, Namespace, Note, Relation};
 
 pub mod class;
 pub mod frontmatter;
@@ -21,6 +25,10 @@ pub enum MermaidParseError {
     Nom(nom::error::ErrorKind),
     #[error("{0}")]
     SerdeYml(serde_yml::Error),
+    #[error("")]
+    ExpectedClassDiagram,
+    #[error("")]
+    ExpectedStmt,
 }
 
 impl<I> ParseError<I> for MermaidParseError {
@@ -35,6 +43,14 @@ impl<I> ParseError<I> for MermaidParseError {
 
 type IResult<I, O> = nom::IResult<I, O, MermaidParseError>;
 
+pub enum Stmt {
+    Class(Class),
+    Namespace(Namespace),
+    Relation(Relation),
+    Note(Note),
+    Direction(Direction),
+}
+
 /// Parse mermaid line by line, keeping lines we failed to parse so they can be copied to the
 /// output. This parser has three contexts: - Frontmatter - Namespace - Class We start out in
 /// Namespace (DEFAULT_NAMESPACE). From this context we can enter into a nested namespace, a class,
@@ -45,20 +61,61 @@ type IResult<I, O> = nom::IResult<I, O, MermaidParseError>;
 /// This parser was maded referencing version 11.12.0 of the Mermaid CLI. If there is a frontmatter
 pub fn parse_mermaid(text: &str) -> Result<Diagram, MermaidParseError> {
     // First line MUST be --- unindented if we have a frontmatter
-    let (text, yaml) = if let Ok((rem, yaml)) = frontmatter::frontmatter(text) {
+    let (mut document, yaml) = if let Ok((rem, yaml)) = frontmatter::frontmatter(text) {
         (rem, Some(yaml))
     } else {
         (text, None)
     };
 
     // Then we can have comments until a diagram definition
+    while let Ok((rem, _)) = ws(comment).parse(text) {
+        document = rem;
+    }
+
+    let Ok((mut body, _)) = class_diagram(document) else {
+        return Err(MermaidParseError::ExpectedClassDiagram);
+    };
 
     // Then we can parse the body of the diagram
-    let mut namespaces = HashMap::new();
+    let mut namespaces: HashMap<String, Namespace> = HashMap::new();
     let mut relations = Vec::new();
     let mut notes = Vec::new();
     let mut direction = None;
-    alt((class::class_stmt, namespace::namespace_stmt));
+
+    while !body.is_empty() {
+        // NOTE: For this combinator to implement parse we actually need the same output type on
+        // all out stmts. Which is why the enum exists.
+        let result = alt((
+            class::class_stmt,
+            namespace::namespace_stmt,
+            relation_stmt,
+            note_stmt,
+            direction_stmt,
+        ))
+        .parse_complete(body);
+
+        match result.map(|(rem, stmt)| {
+            body = rem;
+            stmt
+        }) {
+            Err(_why) => {
+                return Err(MermaidParseError::ExpectedStmt);
+            }
+            Ok(Stmt::Class(class)) => {
+                namespaces
+                    .get_mut(types::DEFAULT_NAMESPACE)
+                    .expect("This should exist")
+                    .classes
+                    .insert(class.name.clone(), class);
+            }
+            Ok(Stmt::Namespace(ns)) => {
+                namespaces.insert(ns.name.clone(), ns);
+            }
+            Ok(Stmt::Relation(rl)) => relations.push(rl),
+            Ok(Stmt::Note(note)) => notes.push(note),
+            Ok(Stmt::Direction(dir)) => direction = Some(dir),
+        }
+    }
 
     Ok(Diagram {
         namespaces,
@@ -73,13 +130,38 @@ fn delete_match<I, O>(val: (I, O)) -> (I, ()) {
     (val.0, ())
 }
 
+fn ws<'a, O, E: ParseError<&'a str>, F>(inner: F) -> impl Parser<&'a str, Output = O, Error = E>
+where
+    F: Parser<&'a str, Output = O, Error = E>,
+{
+    delimited(multispace0, inner, opt(multispace0))
+}
+
+pub fn class_diagram(s: &str) -> IResult<&str, ()> {
+    ws(alt((tag("classDiagram-v2"), tag("classDiagram"))))
+        .parse_complete(s)
+        .map(delete_match)
+}
+
 // Original parsing for these are done with the following two regex:
 // - \%\%[^\n]*(\r?\n)*
 // - \%\%(?!\{)*[^\n]*(\r?\n?)+
-pub fn stmt_comment(s: &str) -> IResult<&str, ()> {
+pub fn comment(s: &str) -> IResult<&str, ()> {
     (tag("%%"), opt(is_not("\r\n")), opt(line_ending))
         .parse(s)
         .map(delete_match)
+}
+
+pub fn relation_stmt(s: &str) -> IResult<&str, Stmt> {
+    todo!()
+}
+
+pub fn note_stmt(s: &str) -> IResult<&str, Stmt> {
+    todo!()
+}
+
+pub fn direction_stmt(s: &str) -> IResult<&str, Stmt> {
+    todo!()
 }
 
 #[cfg(test)]
@@ -87,13 +169,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_stmt_comment() {
+    fn test_comment() {
         // Invalid comment
-        let result = stmt_comment("% This is an invalid comment");
+        let result = comment("% This is an invalid comment");
         assert!(result.is_err());
 
         // EOF
-        let result = stmt_comment("%% This is a valid comment");
+        let result = comment("%% This is a valid comment");
         assert!(result.is_ok());
         let (remainder, _) = result.unwrap();
         assert_eq!(
@@ -102,13 +184,13 @@ mod tests {
         );
 
         // Windows Newline
-        let result = stmt_comment("%% This is a comment on windows\r\nclassDiagram");
+        let result = comment("%% This is a comment on windows\r\nclassDiagram");
         assert!(result.is_ok());
         let (remainder, _) = result.unwrap();
         assert_eq!(remainder, "classDiagram", "We should strip the endline.");
 
         // Linux Newline
-        let result = stmt_comment("%% This is a comment on windows\nclassDiagram");
+        let result = comment("%% This is a comment on windows\nclassDiagram");
         assert!(result.is_ok());
         let (remainder, _) = result.unwrap();
         assert_eq!(remainder, "classDiagram", "We should strip the endline.");
