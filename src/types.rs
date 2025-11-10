@@ -1,7 +1,10 @@
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap};
 
 /// "default" (no explicit namespace in the diagram)
 pub const DEFAULT_NAMESPACE: &str = "";
+
+type Sym<'a> = Cow<'a, str>;
+type OptSym<'a> = Option<Sym<'a>>;
 
 /// Direction of the diagram layout
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,39 +47,39 @@ impl From<char> for Visibility {
 
 /// A single parameter in a method signature
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Parameter {
-    pub name: String,
-    pub data_type: Option<String>,   // `None` if omitted in the diagram
+pub struct Parameter<'source> {
+    pub name: Sym<'source>,
+    pub data_type: OptSym<'source>, // `None` if omitted in the diagram
     pub type_notation: TypeNotation, // Prefix, Postfix, or None
 }
 
 /// A member inside a class box
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Member {
+pub enum Member<'source> {
     /// `+fieldName: Type`
-    Attribute(Attribute),
+    Attribute(Attribute<'source>),
 
     /// `+methodName(arg: Type): ReturnType`
-    Method(Method),
+    Method(Method<'source>),
 }
 
 /// Data that only an **attribute** has
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Attribute {
+pub struct Attribute<'source> {
     pub visibility: Visibility,
-    pub name: String,
-    pub data_type: Option<String>,
+    pub name: Sym<'source>,
+    pub data_type: OptSym<'source>,
     pub is_static: bool,             // "$" in Mermaid
     pub type_notation: TypeNotation, // Prefix, Postfix, or None
 }
 
 /// Data that only a **method** has
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Method {
+pub struct Method<'source> {
     pub visibility: Visibility,
-    pub name: String,
-    pub parameters: Vec<Parameter>,
-    pub return_type: Option<String>,
+    pub name: Sym<'source>,
+    pub parameters: Vec<Parameter<'source>>,
+    pub return_type: OptSym<'source>,
     pub is_static: bool,                    // "$" in Mermaid
     pub is_abstract: bool,                  // "*" in Mermaid
     pub return_type_notation: TypeNotation, // Prefix, Postfix, or None
@@ -84,19 +87,10 @@ pub struct Method {
 
 /// A single class or interface in the diagram
 #[derive(Debug, Clone)]
-pub struct Class {
-    pub name: String,             // Fully-qualified (incl. namespace)
-    pub generic: Option<String>,  // the “~T” from `Foo~T~`
-    pub annotations: Vec<String>, // <<interface>>, <<service>> …
-    pub members: Vec<Member>,     // <── was Vec<ClassMember>
-    pub namespace: String,        // DEFAULT_NAMESPACE if missing
-}
-
-/// Solid vs dotted line
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LineStyle {
-    Solid,
-    Dotted,
+pub struct Class<'source> {
+    pub name: Sym<'source>,             // Fully-qualified (incl. namespace)
+    pub annotations: Vec<Sym<'source>>, // <<interface>>, <<service>> …
+    pub members: Vec<Member<'source>>,  // <── was Vec<ClassMember>
 }
 
 /// Mermaid’s five relation arrow-heads
@@ -115,37 +109,38 @@ pub enum RelationKind {
 
 /// Edge between two classes
 #[derive(Debug, Clone)]
-pub struct Relation {
-    pub from: String, // fully-qualified class names
-    pub to: String,
+pub struct Relation<'source> {
+    /// The class name which the tail comes FROM.
+    pub tail: Sym<'source>, // fully-qualified class names
+    /// The class name which the head is attached TO
+    pub head: Sym<'source>,
     pub kind: RelationKind,
-    pub line: LineStyle,
-    pub cardinality_from: Option<String>, // e.g., "1", "*", "1..*"
-    pub cardinality_to: Option<String>,   // e.g., "1", "*", "1..*"
-    pub label: Option<String>,            // relationship label text
+    pub cardinality_tail: OptSym<'source>, // e.g., "1", "*", "1..*"
+    pub cardinality_head: OptSym<'source>, // e.g., "1", "*", "1..*"
+    pub label: OptSym<'source>,            // relationship label text
 }
 
 /// A note in the diagram - either general or attached to a specific class
 #[derive(Debug, Clone)]
-pub struct Note {
-    pub text: String,                 // the note content
-    pub target_class: Option<String>, // None for general notes, Some(class) for "note for ClassName"
+pub struct Note<'source> {
+    pub text: Sym<'source>,            // the note content
+    pub target_class: OptSym<'source>, // None for general notes, Some(class) for "note for ClassName"
 }
 
 /// Recursive namespace tree
 #[derive(Debug, Default)]
-pub struct Namespace {
-    pub name: String,
-    pub classes: HashMap<String, Class>,      // name ➜ class
-    pub children: HashMap<String, Namespace>, // nested namespaces
+pub struct Namespace<'source> {
+    pub name: Sym<'source>,
+    pub classes: HashMap<Sym<'source>, Class<'source>>, // name ➜ class
+    pub children: HashMap<Sym<'source>, Namespace<'source>>, // nested namespaces
 }
 
 /// Whole diagram
 #[derive(Debug, Default)]
-pub struct Diagram {
-    pub namespaces: HashMap<String, Namespace>,
-    pub relations: Vec<Relation>,
-    pub notes: Vec<Note>,
+pub struct Diagram<'source> {
+    pub namespaces: HashMap<Sym<'source>, Namespace<'source>>,
+    pub relations: Vec<Relation<'source>>,
+    pub notes: Vec<Note<'source>>,
     pub direction: Option<Direction>,
     pub yaml: Option<serde_yml::Value>,
 }

@@ -124,13 +124,13 @@ fn serialize_class(class: &Class, output: &mut String) {
 
 /// Serialize a relation to Mermaid format
 fn serialize_relation(relation: &Relation, output: &mut String) {
-    let from_name = escape_class_name(&relation.from);
-    let to_name = escape_class_name(&relation.to);
+    let from_name = escape_class_name(&relation.tail);
+    let to_name = escape_class_name(&relation.head);
 
     write!(output, "{}", from_name).unwrap();
 
     // Add cardinality_from if present
-    if let Some(card) = &relation.cardinality_from {
+    if let Some(card) = &relation.cardinality_tail {
         write!(output, " \"{}\"", card).unwrap();
     }
 
@@ -150,7 +150,7 @@ fn serialize_relation(relation: &Relation, output: &mut String) {
     }
 
     // Add cardinality_to if present
-    if let Some(card) = &relation.cardinality_to {
+    if let Some(card) = &relation.cardinality_head {
         write!(output, " \"{}\"", card).unwrap();
     }
 

@@ -12,14 +12,23 @@ fn test_roundtrip_simple_class() {
 
     // Should have same number of classes
     assert_eq!(
-        diagram.namespaces.values().map(|ns| ns.classes.len()).sum::<usize>(),
-        diagram2.namespaces.values().map(|ns| ns.classes.len()).sum::<usize>()
+        diagram
+            .namespaces
+            .values()
+            .map(|ns| ns.classes.len())
+            .sum::<usize>(),
+        diagram2
+            .namespaces
+            .values()
+            .map(|ns| ns.classes.len())
+            .sum::<usize>()
     );
 }
 
 #[test]
 fn test_roundtrip_backtick_names() {
-    let input = "classDiagram\nclass `Animal Class!`\nclass `Car Class`\n`Animal Class!` --> `Car Class`\n";
+    let input =
+        "classDiagram\nclass `Animal Class!`\nclass `Car Class`\n`Animal Class!` --> `Car Class`\n";
     let diagram = parse(input).unwrap();
     let output = serialize_diagram(&diagram);
 
@@ -42,11 +51,15 @@ fn test_roundtrip_members_prefix_notation() {
     let diagram2 = parse(&output).unwrap();
 
     // Check member count
-    let class1 = diagram.namespaces.values()
+    let class1 = diagram
+        .namespaces
+        .values()
         .flat_map(|ns| ns.classes.values())
         .next()
         .unwrap();
-    let class2 = diagram2.namespaces.values()
+    let class2 = diagram2
+        .namespaces
+        .values()
         .flat_map(|ns| ns.classes.values())
         .next()
         .unwrap();
@@ -64,11 +77,15 @@ fn test_roundtrip_members_postfix_notation() {
 
     let diagram2 = parse(&output).unwrap();
 
-    let class1 = diagram.namespaces.values()
+    let class1 = diagram
+        .namespaces
+        .values()
         .flat_map(|ns| ns.classes.values())
         .next()
         .unwrap();
-    let class2 = diagram2.namespaces.values()
+    let class2 = diagram2
+        .namespaces
+        .values()
         .flat_map(|ns| ns.classes.values())
         .next()
         .unwrap();
@@ -87,8 +104,14 @@ fn test_roundtrip_relations_with_cardinality() {
     let diagram2 = parse(&output).unwrap();
 
     assert_eq!(diagram.relations.len(), diagram2.relations.len());
-    assert_eq!(diagram.relations[0].cardinality_from, diagram2.relations[0].cardinality_from);
-    assert_eq!(diagram.relations[0].cardinality_to, diagram2.relations[0].cardinality_to);
+    assert_eq!(
+        diagram.relations[0].cardinality_tail,
+        diagram2.relations[0].cardinality_tail
+    );
+    assert_eq!(
+        diagram.relations[0].cardinality_head,
+        diagram2.relations[0].cardinality_head
+    );
 }
 
 #[test]
@@ -117,7 +140,8 @@ fn test_roundtrip_notes() {
 
 #[test]
 fn test_roundtrip_namespace() {
-    let input = "classDiagram\nnamespace MyNamespace {\nclass Test\nTest : +int x\n}\nclass OutsideClass\n";
+    let input =
+        "classDiagram\nnamespace MyNamespace {\nclass Test\nTest : +int x\n}\nclass OutsideClass\n";
     let diagram = parse(input).unwrap();
     let output = serialize_diagram(&diagram);
 
@@ -166,10 +190,10 @@ note for Vehicle "Vehicles are fast"
     assert_eq!(diagram.relations.len(), diagram2.relations.len());
     assert_eq!(diagram.notes.len(), diagram2.notes.len());
 
-    let total_classes1: usize = diagram.namespaces.values()
-        .map(|ns| ns.classes.len())
-        .sum();
-    let total_classes2: usize = diagram2.namespaces.values()
+    let total_classes1: usize = diagram.namespaces.values().map(|ns| ns.classes.len()).sum();
+    let total_classes2: usize = diagram2
+        .namespaces
+        .values()
         .map(|ns| ns.classes.len())
         .sum();
 

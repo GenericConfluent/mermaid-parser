@@ -438,12 +438,12 @@ fn scan_relation(pair: Pair<Rule>) -> Result<Relation, ParseError> {
     };
 
     Ok(Relation {
-        from,
-        to,
+        tail: from,
+        head: to,
         kind,
         line,
-        cardinality_from,
-        cardinality_to,
+        cardinality_tail: cardinality_from,
+        cardinality_head: cardinality_to,
         label,
     })
 }

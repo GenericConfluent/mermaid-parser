@@ -74,8 +74,8 @@ mod tests {
             panic!("We should only be returning Stmt::Relation");
         };
         assert!(rem.is_empty(), "There should be nothing left");
-        assert_eq!(rel.to, expect_to, "Wrong target");
-        assert_eq!(rel.from, expect_from, "Wrong source");
+        assert_eq!(rel.head, expect_to, "Wrong target");
+        assert_eq!(rel.tail, expect_from, "Wrong source");
         assert_eq!(rel.kind, expect_op, "Wrong relationship kind");
     }
 
