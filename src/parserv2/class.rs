@@ -6,7 +6,10 @@ use nom::{
     sequence::preceded,
 };
 
-use crate::{parserv2::ws, types::Class};
+use crate::{
+    parserv2::ws,
+    types::{Attribute, Class, Member, Method, Parameter, Visibility},
+};
 
 use super::{IResult, Stmt};
 
@@ -47,7 +50,23 @@ pub fn class_stmt(s: &str) -> IResult<&str, Stmt> {
     ))
 }
 
-pub fn class_member_stmt(s: &str) -> IResult<&str, Class> {
+pub fn class_member_stmt(s: &str) -> IResult<&str, Member> {
+    todo!()
+}
+
+pub fn class_visibility(s: &str) -> IResult<&str, Visibility> {
+    todo!()
+}
+
+pub fn class_attribute(s: &str) -> IResult<&str, Attribute> {
+    todo!()
+}
+
+pub fn class_method(s: &str) -> IResult<&str, Method> {
+    todo!()
+}
+
+pub fn class_method_param(s: &str) -> IResult<&str, Parameter> {
     todo!()
 }
 
