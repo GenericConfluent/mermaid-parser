@@ -21,8 +21,22 @@ pub fn class_stmt<'source>(s: &'source str) -> IResult<&'source str, Stmt<'sourc
 
     let (s, name) = preceded((multispace0, tag("class"), space1), class_name).parse_complete(s)?;
 
-    // Parse opening brace
     let (s, _) = multispace0.parse(s)?;
+
+    // Check if there's an opening brace - if not, this is a bare class declaration
+    if let Err(_) = char::<_, nom::error::Error<_>>('{').parse(s) {
+        // Bare class declaration - just return empty class
+        return Ok((
+            s,
+            Stmt::Class(Class {
+                name: Cow::Borrowed(name),
+                annotations: Vec::new(),
+                members: Vec::new(),
+            }),
+        ));
+    }
+
+    // Parse opening brace
     let (s, _) = char('{').parse(s)?;
     let (s, _) = multispace0.parse(s)?;
 
