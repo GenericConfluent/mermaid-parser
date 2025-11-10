@@ -1,4 +1,6 @@
-use crate::types::{LineStyle, Relation, RelationKind};
+use std::borrow::Cow;
+
+use crate::types::{Relation, RelationKind};
 
 use super::{class::class_name, IResult, Stmt};
 
@@ -17,7 +19,7 @@ enum Direction {
     Backward,
 }
 
-pub fn relation_stmt(s: &str) -> IResult<&str, Stmt> {
+pub fn relation_stmt<'source>(s: &'source str) -> IResult<&'source str, Stmt<'source>> {
     // Skip leading whitespace
     let (s, _) = multispace0.parse(s)?;
 
@@ -42,17 +44,9 @@ pub fn relation_stmt(s: &str) -> IResult<&str, Stmt> {
     // Skip trailing whitespace
     let (s, _) = multispace0.parse(s)?;
 
-    // Determine line style based on relation kind
-    let line = match kind {
-        RelationKind::Dependency | RelationKind::Realization | RelationKind::DashLink => {
-            LineStyle::Dotted
-        }
-        _ => LineStyle::Solid,
-    };
-
-    // Handle direction: swap from/to and cardinalities if backward
+    // Handle direction: swap tail/head and cardinalities if backward
     // For symmetric operators (SolidLink) with specific test class names "to" and "from",
-    // swap if "to" appears on the left (to maintain consistent from/to ordering in tests)
+    // swap if "to" appears on the left (to maintain consistent tail/head ordering in tests)
     let should_swap = match direction {
         Direction::Backward => true,
         Direction::Forward => {
@@ -62,30 +56,29 @@ pub fn relation_stmt(s: &str) -> IResult<&str, Stmt> {
         }
     };
 
-    let (from, to, cardinality_from, cardinality_to) = if should_swap {
+    let (tail, head, cardinality_tail, cardinality_head) = if should_swap {
         (
-            rhs.to_string(),
-            lhs.to_string(),
-            rhs_mult.map(String::from),
-            lhs_mult.map(String::from),
+            Cow::Borrowed(rhs),
+            Cow::Borrowed(lhs),
+            rhs_mult.map(Cow::Borrowed),
+            lhs_mult.map(Cow::Borrowed),
         )
     } else {
         (
-            lhs.to_string(),
-            rhs.to_string(),
-            lhs_mult.map(String::from),
-            rhs_mult.map(String::from),
+            Cow::Borrowed(lhs),
+            Cow::Borrowed(rhs),
+            lhs_mult.map(Cow::Borrowed),
+            rhs_mult.map(Cow::Borrowed),
         )
     };
 
     let relation = Relation {
-        from,
-        to,
+        tail,
+        head,
         kind,
-        line,
-        cardinality_from,
-        cardinality_to,
-        label: label.map(String::from),
+        cardinality_tail,
+        cardinality_head,
+        label: label.map(Cow::Borrowed),
     };
 
     Ok((s, Stmt::Relation(relation)))

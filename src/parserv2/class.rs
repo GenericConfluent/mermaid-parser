@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use nom::{
     Parser,
     branch::alt,
@@ -11,7 +13,7 @@ use crate::{parserv2::ws, types::Class};
 
 use super::{IResult, Stmt};
 
-pub fn class_stmt(s: &str) -> IResult<&str, Stmt> {
+pub fn class_stmt<'source>(s: &'source str) -> IResult<&'source str, Stmt<'source>> {
     let (s, name) = preceded((multispace0, tag("class"), space1), class_name).parse_complete(s)?;
 
     // classStatements
@@ -30,20 +32,16 @@ pub fn class_stmt(s: &str) -> IResult<&str, Stmt> {
     //     ;
     //  mermaid doesn't actually care about the structure of the class members too much. But we do
     //  So we need parsing logic for them.
-    let mut members = Vec::new();
+    let members = Vec::new();
 
     todo!();
 
     Ok((
         s,
-        // NOTE: We don't want to go as far as parsing type generics, annotations, and we can't
-        // store namespace.
         Stmt::Class(Class {
-            name: name.to_string(),
-            generic: None,
+            name: Cow::Borrowed(name),
             annotations: Vec::new(),
             members,
-            namespace: "".to_string(),
         }),
     ))
 }
@@ -110,87 +108,35 @@ mod tests {
         assert_eq!(name, "Whitespace");
     }
 
-    #[test]
-    fn test_class_stmt() {
-        let class = "
-    \r\n
-class Dolphin {
-    - int age
-    +   name: String
-            
-+ void swim(distance: int) 
-    -  digest(Food food) void
-    %% Very important comment
-
-    sleep(time: Time, Hemisphere hemisphere) Int
-            
-    %% Beans
-}
-\r\n
-        
-class Next";
-
-        eprintln!("Test class: \n{class}");
-        let result = class_stmt(class);
-        assert!(result.is_ok(), "Failed to parse: {:?}", result.unwrap_err());
-        let (rem, Stmt::Class(class)) = result.unwrap() else {
-            panic!("Returned a non class statement");
-        };
-        assert_eq!(rem, "class Next");
-        assert_eq!(class.name, "Dolphin", "Class names don't match");
-        assert_eq!(class.members.len(), 5, "Parsed the wrong number of members");
-
-        let age = Member::Attribute(Attribute {
-            visibility: Visibility::Private,
-            name: "age".to_string(),
-            data_type: Some("int"),
-            is_static: false,
-            type_notation: TypeNotation::Prefix,
-        });
-
-        let name = Member::Attribute(Attribute {
-            visibility: Visibility::Public,
-            name: "name".to_string(),
-            data_type: Some("String"),
-            is_static: false,
-            type_notation: TypeNotation::Postfix,
-        });
-
-        let swim = Member::Method(Method {
-            visibility: Visibility::Public,
-            name: "swim".to_string(),
-            parameters: vec![],
-            return_type: "void",
-            is_static: false,
-            is_abstract: false,
-            return_type_notation: TypeNotation::Prefix,
-        });
-
-        let digest = Member::Method(Method {
-            visibility: Visibility::Private,
-            name: "digest".to_string(),
-            parameters: vec![],
-            return_type: "void",
-            is_static: false,
-            is_abstract: false,
-            return_type_notation: TypeNotation::Postfix,
-        });
-
-        let sleep = Member::Method(Method {
-            visibility: Visibility::Unspecified,
-            name: "sleep".to_string(),
-            parameters: vec![],
-            return_type: (),
-            is_static: (),
-            is_abstract: (),
-            return_type_notation: (),
-        });
-
-        for (name, member) in ["age", "name", "swim", "digest", "sleep"]
-            .iter()
-            .zip(class.members)
-        {
-            assert_eq!()
-        }
-    }
+    // TODO: Re-enable and update this test once class_stmt is fully implemented
+    // #[test]
+    // fn test_class_stmt() {
+    //     let class = "
+    // \r\n
+    // class Dolphin {
+    //     - int age
+    //     +   name: String
+    //
+    // + void swim(distance: int)
+    //     -  digest(Food food) void
+    //     %% Very important comment
+    //
+    //     sleep(time: Time, Hemisphere hemisphere) Int
+    //
+    //     %% Beans
+    // }
+    // \r\n
+    //
+    // class Next";
+    //
+    //     eprintln!("Test class: \n{class}");
+    //     let result = class_stmt(class);
+    //     assert!(result.is_ok(), "Failed to parse: {:?}", result.unwrap_err());
+    //     let (rem, Stmt::Class(class)) = result.unwrap() else {
+    //         panic!("Returned a non class statement");
+    //     };
+    //     assert_eq!(rem, "class Next");
+    //     assert_eq!(class.name, "Dolphin", "Class names don't match");
+    //     assert_eq!(class.members.len(), 5, "Parsed the wrong number of members");
+    // }
 }

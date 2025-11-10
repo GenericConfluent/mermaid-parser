@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap};
 
 use nom::{
     self, PResult, Parser,
@@ -45,11 +45,11 @@ impl<I> ParseError<I> for MermaidParseError {
 type IResult<I, O> = nom::IResult<I, O, MermaidParseError>;
 
 #[derive(Debug)]
-pub enum Stmt {
-    Class(Class),
-    Namespace(Namespace),
-    Relation(Relation),
-    Note(Note),
+pub enum Stmt<'source> {
+    Class(Class<'source>),
+    Namespace(Namespace<'source>),
+    Relation(Relation<'source>),
+    Note(Note<'source>),
     Direction(Direction),
 }
 
@@ -79,7 +79,7 @@ pub fn parse_mermaid(text: &str) -> Result<Diagram, MermaidParseError> {
     };
 
     // Then we can parse the body of the diagram
-    let mut namespaces: HashMap<String, Namespace> = HashMap::new();
+    let mut namespaces: HashMap<Cow<str>, Namespace> = HashMap::new();
     let mut relations = Vec::new();
     let mut notes = Vec::new();
     let mut direction = None;
@@ -154,11 +154,11 @@ pub fn comment(s: &str) -> IResult<&str, ()> {
         .map(delete_match)
 }
 
-pub fn note_stmt(s: &str) -> IResult<&str, Stmt> {
+pub fn note_stmt<'source>(s: &'source str) -> IResult<&'source str, Stmt<'source>> {
     todo!()
 }
 
-pub fn direction_stmt(s: &str) -> IResult<&str, Stmt> {
+pub fn direction_stmt<'source>(s: &'source str) -> IResult<&'source str, Stmt<'source>> {
     todo!()
 }
 
