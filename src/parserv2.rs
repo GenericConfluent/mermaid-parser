@@ -18,6 +18,7 @@ use crate::types::{self, Class, Diagram, Direction, Namespace, Note, Relation};
 pub mod class;
 pub mod frontmatter;
 pub mod namespace;
+pub mod relation;
 
 #[derive(thiserror::Error, Debug, derive_more::From)]
 pub enum MermaidParseError {
@@ -152,10 +153,6 @@ pub fn comment(s: &str) -> IResult<&str, ()> {
         .map(delete_match)
 }
 
-pub fn relation_stmt(s: &str) -> IResult<&str, Stmt> {
-    todo!()
-}
-
 pub fn note_stmt(s: &str) -> IResult<&str, Stmt> {
     todo!()
 }
@@ -195,4 +192,10 @@ mod tests {
         let (remainder, _) = result.unwrap();
         assert_eq!(remainder, "classDiagram", "We should strip the endline.");
     }
+
+    #[test]
+    fn test_direction_stmt() {}
+
+    #[test]
+    fn test_note_stmt() {}
 }

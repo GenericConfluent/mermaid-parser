@@ -1,8 +1,8 @@
 //! Serialize Mermaid diagram structures back to text format
 
 use crate::types::{
-    Class, Diagram, Direction, LineStyle, Member, Note, Relation, RelationKind, TypeNotation,
-    Visibility, DEFAULT_NAMESPACE,
+    Class, DEFAULT_NAMESPACE, Diagram, Direction, LineStyle, Member, Note, Relation, RelationKind,
+    TypeNotation, Visibility,
 };
 use std::fmt::Write;
 
@@ -79,7 +79,8 @@ fn serialize_member(member: &Member, output: &mut String) {
                     TypeNotation::Prefix => {
                         // Type Name
                         if let Some(data_type) = &param.data_type {
-                            write!(output, "{} {}", escape_class_name(data_type), param.name).unwrap();
+                            write!(output, "{} {}", escape_class_name(data_type), param.name)
+                                .unwrap();
                         } else {
                             write!(output, "{}", param.name).unwrap();
                         }
@@ -141,8 +142,8 @@ fn serialize_relation(relation: &Relation, output: &mut String) {
         (RelationKind::Aggregation, LineStyle::Dotted) => output.push_str("..o"),
         (RelationKind::Composition, LineStyle::Solid) => output.push_str("--*"),
         (RelationKind::Composition, LineStyle::Dotted) => output.push_str("..*"),
-        (RelationKind::Extension, LineStyle::Solid) => output.push_str("--|>"),
-        (RelationKind::Extension, LineStyle::Dotted) => output.push_str("..|>"),
+        (RelationKind::Inheritance, LineStyle::Solid) => output.push_str("--|>"),
+        (RelationKind::Inheritance, LineStyle::Dotted) => output.push_str("..|>"),
         (RelationKind::Dependency, LineStyle::Solid) => output.push_str("-->"),
         (RelationKind::Dependency, LineStyle::Dotted) => output.push_str("..>"),
         (RelationKind::Lollipop, _) => output.push_str("--o"),
@@ -166,7 +167,13 @@ fn serialize_relation(relation: &Relation, output: &mut String) {
 /// Serialize a note to Mermaid format
 fn serialize_note(note: &Note, output: &mut String) {
     if let Some(target_class) = &note.target_class {
-        writeln!(output, "note for {} \"{}\"", escape_class_name(target_class), note.text).unwrap();
+        writeln!(
+            output,
+            "note for {} \"{}\"",
+            escape_class_name(target_class),
+            note.text
+        )
+        .unwrap();
     } else {
         writeln!(output, "note \"{}\"", note.text).unwrap();
     }
@@ -226,7 +233,9 @@ pub fn serialize_diagram(diagram: &Diagram) -> String {
         writeln!(output, "namespace {} {{", escape_class_name(namespace_name)).unwrap();
         for class in namespace.classes.values() {
             // Serialize class without namespace prefix (it's already in the block context)
-            let class_name_only = class.name.strip_prefix(&format!("{}::", namespace_name))
+            let class_name_only = class
+                .name
+                .strip_prefix(&format!("{}::", namespace_name))
                 .unwrap_or(&class.name);
             let class_name = escape_class_name(class_name_only);
 

@@ -1,11 +1,11 @@
-use pest::iterators::Pair;
 use pest::Parser;
+use pest::iterators::Pair;
 use pest_derive::Parser;
 use thiserror::Error;
 
 use crate::types::{
-    Attribute, Class, Diagram, Direction, LineStyle, Member, Method, Namespace, Note, Parameter,
-    Relation, RelationKind, TypeNotation, Visibility, DEFAULT_NAMESPACE,
+    Attribute, Class, DEFAULT_NAMESPACE, Diagram, Direction, LineStyle, Member, Method, Namespace,
+    Note, Parameter, Relation, RelationKind, TypeNotation, Visibility,
 };
 
 #[derive(Parser)]
@@ -30,7 +30,7 @@ enum Stmt {
 }
 
 // ────────────────────────────────────────────────────────────────────────────────
-// Public entry point                                                             
+// Public entry point
 // ────────────────────────────────────────────────────────────────────────────────
 
 pub fn parse(src: &str) -> Result<Diagram, ParseError> {
@@ -86,7 +86,7 @@ fn extract_yaml_frontmatter(src: &str) -> Result<(Option<serde_yml::Value>, &str
 }
 
 // ────────────────────────────────────────────────────────────────────────────────
-// First pass: build lightweight statement enums                                  
+// First pass: build lightweight statement enums
 // ────────────────────────────────────────────────────────────────────────────────
 
 fn collect_stmt(pair: Pair<Rule>, out: &mut Vec<Stmt>) -> Result<(), ParseError> {
@@ -110,7 +110,7 @@ fn collect_stmt(pair: Pair<Rule>, out: &mut Vec<Stmt>) -> Result<(), ParseError>
 }
 
 // ────────────────────────────────────────────────────────────────────────────────
-// Class                                                                          
+// Class
 // ────────────────────────────────────────────────────────────────────────────────
 
 fn scan_class(pair: Pair<Rule>) -> Result<Class, ParseError> {
@@ -142,7 +142,7 @@ fn scan_class(pair: Pair<Rule>) -> Result<Class, ParseError> {
 }
 
 // ────────────────────────────────────────────────────────────────────────────────
-// Member statement                                                               
+// Member statement
 // ────────────────────────────────────────────────────────────────────────────────
 
 fn scan_member_stmt(pair: Pair<Rule>) -> Result<Stmt, ParseError> {
@@ -153,7 +153,7 @@ fn scan_member_stmt(pair: Pair<Rule>) -> Result<Stmt, ParseError> {
             .next()
             .ok_or_else(|| ParseError::Custom("member: target missing".into()))?
             .as_str()
-            .trim()
+            .trim(),
     );
     let member_decl = inner
         .next()
@@ -194,13 +194,10 @@ fn build_member(decl: Pair<Rule>) -> Result<Member, ParseError> {
 }
 
 // -----------------------------------------------------------------------------
-// Attribute                                                                     
+// Attribute
 // -----------------------------------------------------------------------------
 
-fn parse_attribute(
-    attr: Pair<Rule>,
-    is_static: bool,
-) -> Result<Attribute, ParseError> {
+fn parse_attribute(attr: Pair<Rule>, is_static: bool) -> Result<Attribute, ParseError> {
     let mut visibility = Visibility::Unspecified;
     let mut name: Option<String> = None;
     let mut ty: Option<String> = None;
@@ -249,7 +246,7 @@ fn parse_attribute(
 }
 
 // -----------------------------------------------------------------------------
-// Method                                                                        
+// Method
 // -----------------------------------------------------------------------------
 
 fn parse_method(
@@ -290,7 +287,8 @@ fn parse_method(
 
 fn parse_parameters(list: Pair<Rule>) -> Result<Vec<Parameter>, ParseError> {
     let mut v = Vec::<Parameter>::new();
-    for p in list.into_inner() { // method_parameter → parameter_list → many parameter
+    for p in list.into_inner() {
+        // method_parameter → parameter_list → many parameter
         match p.as_rule() {
             Rule::parameter_list => {
                 // Descend into parameter_list
@@ -348,7 +346,7 @@ fn parse_parameter(p: Pair<Rule>) -> Result<Parameter, ParseError> {
 }
 
 // ────────────────────────────────────────────────────────────────────────────────
-// Relation statement                                                             
+// Relation statement
 // ────────────────────────────────────────────────────────────────────────────────
 
 fn scan_relation(pair: Pair<Rule>) -> Result<Relation, ParseError> {
@@ -360,7 +358,7 @@ fn scan_relation(pair: Pair<Rule>) -> Result<Relation, ParseError> {
             .next()
             .ok_or_else(|| ParseError::Custom("relation: from class missing".into()))?
             .as_str()
-            .trim()
+            .trim(),
     );
 
     let mut cardinality1: Option<String> = None;
@@ -391,12 +389,18 @@ fn scan_relation(pair: Pair<Rule>) -> Result<Relation, ParseError> {
                 label = Some(text.trim_start_matches(':').trim().to_owned());
             }
             // All the arrow types
-            Rule::aggregation_left | Rule::aggregation_right
-            | Rule::composition_left | Rule::composition_right
-            | Rule::inheritance_left | Rule::inheritance_right
-            | Rule::realization_left | Rule::realization_right
-            | Rule::association_left | Rule::association_right
-            | Rule::dependency_left | Rule::dependency_right
+            Rule::aggregation_left
+            | Rule::aggregation_right
+            | Rule::composition_left
+            | Rule::composition_right
+            | Rule::inheritance_left
+            | Rule::inheritance_right
+            | Rule::realization_left
+            | Rule::realization_right
+            | Rule::association_left
+            | Rule::association_right
+            | Rule::dependency_left
+            | Rule::dependency_right
             | Rule::link => {
                 arrow_rule = Some(part);
             }
@@ -405,7 +409,8 @@ fn scan_relation(pair: Pair<Rule>) -> Result<Relation, ParseError> {
     }
 
     let arrow = arrow_rule.ok_or_else(|| ParseError::Custom("relation: arrow missing".into()))?;
-    let second = second_class.ok_or_else(|| ParseError::Custom("relation: to class missing".into()))?;
+    let second =
+        second_class.ok_or_else(|| ParseError::Custom("relation: to class missing".into()))?;
 
     // Determine kind, line style, and whether arrow points left (swap from/to)
     let (kind, line, points_left) = match arrow.as_rule() {
@@ -413,8 +418,8 @@ fn scan_relation(pair: Pair<Rule>) -> Result<Relation, ParseError> {
         Rule::aggregation_right => (RelationKind::Aggregation, LineStyle::Solid, false),
         Rule::composition_left => (RelationKind::Composition, LineStyle::Solid, true),
         Rule::composition_right => (RelationKind::Composition, LineStyle::Solid, false),
-        Rule::inheritance_left => (RelationKind::Extension, LineStyle::Solid, true),
-        Rule::inheritance_right => (RelationKind::Extension, LineStyle::Solid, false),
+        Rule::inheritance_left => (RelationKind::Inheritance, LineStyle::Solid, true),
+        Rule::inheritance_right => (RelationKind::Inheritance, LineStyle::Solid, false),
         Rule::realization_left => (RelationKind::Dependency, LineStyle::Dotted, true),
         Rule::realization_right => (RelationKind::Dependency, LineStyle::Dotted, false),
         Rule::association_left => (RelationKind::Dependency, LineStyle::Solid, true),
@@ -587,7 +592,7 @@ fn apply_stmt(stmt: Stmt, diagram: &mut Diagram) {
 /// Strip backticks from identifiers if present
 fn strip_backticks(s: &str) -> String {
     if s.starts_with('`') && s.ends_with('`') && s.len() > 1 {
-        s[1..s.len()-1].to_owned()
+        s[1..s.len() - 1].to_owned()
     } else {
         s.to_owned()
     }
