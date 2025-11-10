@@ -44,6 +44,7 @@ impl<I> ParseError<I> for MermaidParseError {
 
 type IResult<I, O> = nom::IResult<I, O, MermaidParseError>;
 
+#[derive(Debug)]
 pub enum Stmt {
     Class(Class),
     Namespace(Namespace),

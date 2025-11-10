@@ -68,6 +68,8 @@ pub fn class_name(s: &str) -> IResult<&str, &str> {
 
 #[cfg(test)]
 mod tests {
+    use crate::types::{Attribute, Member, Method, TypeNotation, Visibility};
+
     use super::*;
 
     #[test]
@@ -83,5 +85,86 @@ mod tests {
     }
 
     #[test]
-    fn test_class_stmt() {}
+    fn test_class_stmt() {
+        let class = "
+    \r\n
+class Dolphin {
+    - int age
+    +   name: String
+            
++ void swim(distance: int) 
+    -  digest(Food food) void
+    %% Very important comment
+
+    sleep(time: Time, Hemisphere hemisphere) Int
+            
+    %% Beans
+}
+\r\n
+        
+class Next";
+
+        eprintln!("Test class: \n{class}");
+        let result = class_stmt(class);
+        assert!(result.is_ok(), "Failed to parse: {:?}", result.unwrap_err());
+        let (rem, Stmt::Class(class)) = result.unwrap() else {
+            panic!("Returned a non class statement");
+        };
+        assert_eq!(rem, "class Next");
+        assert_eq!(class.name, "Dolphin", "Class names don't match");
+        assert_eq!(class.members.len(), 5, "Parsed the wrong number of members");
+
+        let age = Member::Attribute(Attribute {
+            visibility: Visibility::Private,
+            name: "age".to_string(),
+            data_type: Some("int"),
+            is_static: false,
+            type_notation: TypeNotation::Prefix,
+        });
+
+        let name = Member::Attribute(Attribute {
+            visibility: Visibility::Public,
+            name: "name".to_string(),
+            data_type: Some("String"),
+            is_static: false,
+            type_notation: TypeNotation::Postfix,
+        });
+
+        let swim = Member::Method(Method {
+            visibility: Visibility::Public,
+            name: "swim".to_string(),
+            parameters: vec![],
+            return_type: "void",
+            is_static: false,
+            is_abstract: false,
+            return_type_notation: TypeNotation::Prefix,
+        });
+
+        let digest = Member::Method(Method {
+            visibility: Visibility::Private,
+            name: "digest".to_string(),
+            parameters: vec![],
+            return_type: "void",
+            is_static: false,
+            is_abstract: false,
+            return_type_notation: TypeNotation::Postfix,
+        });
+
+        let sleep = Member::Method(Method {
+            visibility: Visibility::Unspecified,
+            name: "sleep".to_string(),
+            parameters: vec![],
+            return_type: (),
+            is_static: (),
+            is_abstract: (),
+            return_type_notation: (),
+        });
+
+        for (name, member) in ["age", "name", "swim", "digest", "sleep"]
+            .iter()
+            .zip(class.members)
+        {
+            assert_eq!()
+        }
+    }
 }
