@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use nom::{
     Parser,
     branch::alt,
@@ -14,7 +16,7 @@ use crate::{
 
 use super::{IResult, Stmt};
 
-pub fn class_stmt(s: &str) -> IResult<&str, Stmt> {
+pub fn class_stmt<'source>(s: &'source str) -> IResult<&'source str, Stmt<'source>> {
     let (s, name) = preceded((multispace0, tag("class"), space1), class_name).parse_complete(s)?;
 
     // classStatements
@@ -33,20 +35,16 @@ pub fn class_stmt(s: &str) -> IResult<&str, Stmt> {
     //     ;
     //  mermaid doesn't actually care about the structure of the class members too much. But we do
     //  So we need parsing logic for them.
-    let mut members = Vec::new();
+    let members = Vec::new();
 
     todo!();
 
     Ok((
         s,
-        // NOTE: We don't want to go as far as parsing type generics, annotations, and we can't
-        // store namespace.
         Stmt::Class(Class {
-            name: name.to_string(),
-            generic: None,
+            name: Cow::Borrowed(name),
             annotations: Vec::new(),
             members,
-            namespace: "".to_string(),
         }),
     ))
 }
@@ -136,17 +134,17 @@ mod tests {
 class Dolphin {
     - int age
     +   name: String
-            
-+ void swim(distance: int) 
+
++ void swim(distance: int)
     -  digest(Food food) void
     %% Very important comment
 
     sleep(time: Time, Hemisphere hemisphere) Int
-            
+
     %% Beans
 }
 \r\n
-        
+
 class Next";
 
         eprintln!("Test class: \n{class}");
