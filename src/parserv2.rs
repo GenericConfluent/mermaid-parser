@@ -5,7 +5,7 @@ use nom::{
     branch::alt,
     bytes::complete::*,
     character::{
-        complete::{line_ending, multispace0},
+        complete::{char, line_ending, multispace0, space0},
         none_of,
     },
     combinator::opt,
@@ -106,18 +106,21 @@ pub fn parse_mermaid(text: &str) -> Result<Diagram, MermaidParseError> {
 
         // Try to parse "ClassName : member" statement first
         if let Ok((s_new, class_name)) = class::class_name(body) {
-            if let Ok((s_new2, _)) = (space0, char(':'))::<_, nom::error::Error<_>>(s_new) {
-                let (s_new3, _) = space0(s_new2).unwrap_or((s_new2, ""));
-                if let Ok((s_new4, member)) = class::class_member_stmt(s_new3) {
-                    // Add member to the class in default namespace
-                    if let Some(class) = namespaces
-                        .get_mut(types::DEFAULT_NAMESPACE)
-                        .and_then(|ns| ns.classes.get_mut(&Cow::Borrowed(class_name)))
-                    {
-                        class.members.push(member);
+            let s_new2_result = space0::<_, nom::error::Error<_>>(s_new);
+            if let Ok((s_new2, _)) = s_new2_result {
+                if let Ok((s_new3, _)) = char::<_, nom::error::Error<_>>(':')(s_new2) {
+                    let (s_new4, _) = space0::<_, nom::error::Error<_>>(s_new3).unwrap_or((s_new3, ""));
+                    if let Ok((s_new5, member)) = class::class_member_stmt(s_new4) {
+                        // Add member to the class in default namespace
+                        if let Some(class) = namespaces
+                            .get_mut(types::DEFAULT_NAMESPACE)
+                            .and_then(|ns| ns.classes.get_mut(&Cow::Borrowed(class_name)))
+                        {
+                            class.members.push(member);
+                        }
+                        body = s_new5;
+                        continue;
                     }
-                    body = s_new4;
-                    continue;
                 }
             }
         }
