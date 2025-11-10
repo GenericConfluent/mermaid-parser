@@ -68,7 +68,7 @@ pub fn class_name(s: &str) -> IResult<&str, &str> {
 
 #[cfg(test)]
 mod tests {
-    use crate::types::{Attribute, Member, Method, TypeNotation, Visibility};
+    use crate::types::{Attribute, Member, Method, Parameter, TypeNotation, Visibility};
 
     use super::*;
 
@@ -116,25 +116,29 @@ class Next";
 
         let age = Member::Attribute(Attribute {
             visibility: Visibility::Private,
-            name: "age".to_string(),
-            data_type: Some("int"),
+            name: "age".into(),
+            data_type: Some("int".into()),
             is_static: false,
             type_notation: TypeNotation::Prefix,
         });
 
         let name = Member::Attribute(Attribute {
             visibility: Visibility::Public,
-            name: "name".to_string(),
-            data_type: Some("String"),
+            name: "name".into(),
+            data_type: Some("String".into()),
             is_static: false,
             type_notation: TypeNotation::Postfix,
         });
 
         let swim = Member::Method(Method {
             visibility: Visibility::Public,
-            name: "swim".to_string(),
-            parameters: vec![],
-            return_type: "void",
+            name: "swim".into(),
+            parameters: vec![Parameter {
+                name: "distance".into(),
+                data_type: Some("int".into()),
+                type_notation: TypeNotation::Postfix,
+            }],
+            return_type: Some("void".into()),
             is_static: false,
             is_abstract: false,
             return_type_notation: TypeNotation::Prefix,
@@ -142,9 +146,13 @@ class Next";
 
         let digest = Member::Method(Method {
             visibility: Visibility::Private,
-            name: "digest".to_string(),
-            parameters: vec![],
-            return_type: "void",
+            name: "digest".into(),
+            parameters: vec![Parameter {
+                name: "food".into(),
+                data_type: Some("Food".into()),
+                type_notation: TypeNotation::Prefix,
+            }],
+            return_type: Some("void".into()),
             is_static: false,
             is_abstract: false,
             return_type_notation: TypeNotation::Postfix,
@@ -152,19 +160,37 @@ class Next";
 
         let sleep = Member::Method(Method {
             visibility: Visibility::Unspecified,
-            name: "sleep".to_string(),
-            parameters: vec![],
-            return_type: (),
-            is_static: (),
-            is_abstract: (),
-            return_type_notation: (),
+            name: "sleep".into(),
+            parameters: vec![
+                Parameter {
+                    name: "time".into(),
+                    data_type: Some("Time".into()),
+                    type_notation: TypeNotation::Postfix,
+                },
+                Parameter {
+                    name: "hemisphere".into(),
+                    data_type: Some("Hemisphere".into()),
+                    type_notation: TypeNotation::Prefix,
+                },
+            ],
+            return_type: Some("Int".into()),
+            is_static: false,
+            is_abstract: false,
+            return_type_notation: TypeNotation::Postfix,
         });
 
-        for (name, member) in ["age", "name", "swim", "digest", "sleep"]
+        let expected_members = vec![age, name, swim, digest, sleep];
+
+        for (i, (expected, actual)) in expected_members
             .iter()
-            .zip(class.members)
+            .zip(class.members.iter())
+            .enumerate()
         {
-            assert_eq!()
+            assert_eq!(
+                expected, actual,
+                "Member at index {} does not match. Expected: {:?}, Got: {:?}",
+                i, expected, actual
+            );
         }
     }
 }
