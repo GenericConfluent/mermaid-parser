@@ -88,9 +88,9 @@ pub struct Method<'source> {
 /// A single class or interface in the diagram
 #[derive(Debug, Clone)]
 pub struct Class<'source> {
-    pub name: Sym<'source>,             // Fully-qualified (incl. namespace)
-    pub annotations: Vec<Sym<'source>>, // <<interface>>, <<service>> …
-    pub members: Vec<Member<'source>>,  // <── was Vec<ClassMember>
+    pub name: Sym<'source>,            // Fully-qualified (incl. namespace)
+    pub annotation: OptSym<'source>,   // <<interface>>, <<service>> …
+    pub members: Vec<Member<'source>>, // <── was Vec<ClassMember>
 }
 
 /// Mermaid’s five relation arrow-heads

@@ -32,9 +32,6 @@ fn serialize_member(member: &Member, output: &mut String) {
     match member {
         Member::Attribute(attr) => {
             write!(output, "{}", visibility_symbol(attr.visibility)).unwrap();
-            if attr.is_static {
-                output.push('$');
-            }
 
             // Use the notation style that was parsed
             match attr.type_notation {
@@ -57,15 +54,13 @@ fn serialize_member(member: &Member, output: &mut String) {
                     write!(output, "{}", attr.name).unwrap();
                 }
             }
+
+            if attr.is_static {
+                output.push('$');
+            }
         }
         Member::Method(method) => {
             write!(output, "{}", visibility_symbol(method.visibility)).unwrap();
-            if method.is_static {
-                output.push('$');
-            }
-            if method.is_abstract {
-                output.push('*');
-            }
 
             write!(output, "{}(", method.name).unwrap();
 
@@ -99,6 +94,13 @@ fn serialize_member(member: &Member, output: &mut String) {
             }
             output.push(')');
 
+            if method.is_static {
+                output.push('$');
+            }
+            if method.is_abstract {
+                output.push('*');
+            }
+
             // Return type (always postfix in mermaid - no colon)
             if let Some(return_type) = &method.return_type {
                 write!(output, " {}", escape_class_name(return_type)).unwrap();
@@ -126,6 +128,11 @@ fn serialize_class(class: &Class, output: &mut String) {
         }
 
         output.push_str("}\n");
+    }
+
+    // Serialize annotation on a new line after the class definition
+    if let Some(annotation) = &class.annotation {
+        writeln!(output, "<<{}>> {}", annotation, class_name).unwrap();
     }
 }
 
@@ -261,6 +268,11 @@ pub fn serialize_diagram(diagram: &Diagram) -> String {
                 }
 
                 output.push_str("}\n");
+            }
+
+            // Serialize annotation on a new line after the class definition
+            if let Some(annotation) = &class.annotation {
+                writeln!(output, "<<{}>> {}", annotation, class_name).unwrap();
             }
         }
         output.push_str("}\n");

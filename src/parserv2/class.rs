@@ -30,7 +30,7 @@ pub fn class_stmt<'source>(s: &'source str) -> IResult<&'source str, Stmt<'sourc
             s,
             Stmt::Class(Class {
                 name: Cow::Borrowed(name),
-                annotations: Vec::new(),
+                annotation: None,
                 members: Vec::new(),
             }),
         ));
@@ -86,7 +86,7 @@ pub fn class_stmt<'source>(s: &'source str) -> IResult<&'source str, Stmt<'sourc
         s,
         Stmt::Class(Class {
             name: Cow::Borrowed(name),
-            annotations: Vec::new(),
+            annotation: None,
             members,
         }),
     ))
