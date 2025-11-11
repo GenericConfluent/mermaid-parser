@@ -48,20 +48,14 @@ pub fn namespace_stmt<'source>(s: &'source str) -> IResult<&'source str, Stmt<'s
             continue;
         }
 
-        // Try to parse "class ClassName" declaration
-        if let Ok((s_new, _)) = tag::<_, _, nom::error::Error<_>>("class").parse(s) {
-            let (s_new, _) = space1.parse(s_new)?;
-            let (s_new, class_name) = class::class_name(s_new)?;
-
-            // Insert empty class if it doesn't exist
-            classes.entry(Cow::Borrowed(class_name)).or_insert_with(|| Class {
-                name: Cow::Borrowed(class_name),
-                annotations: Vec::new(),
-                members: Vec::new(),
-            });
-
-            s = s_new;
-            continue;
+        // Try to parse full class statement (including brace notation)
+        if let Ok((s_new, stmt)) = class::class_stmt(s) {
+            if let Stmt::Class(class) = stmt {
+                // Insert or merge the class
+                classes.insert(class.name.clone(), class);
+                s = s_new;
+                continue;
+            }
         }
 
         // Try to parse "ClassName : member" statement

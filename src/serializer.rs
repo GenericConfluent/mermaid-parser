@@ -107,18 +107,25 @@ fn serialize_member(member: &Member, output: &mut String) {
     }
 }
 
-/// Serialize a single class to Mermaid format (one statement per line)
+/// Serialize a single class to Mermaid format using brace notation
 fn serialize_class(class: &Class, output: &mut String) {
     let class_name = escape_class_name(&class.name);
 
-    // Class declaration
-    writeln!(output, "class {}", class_name).unwrap();
+    if class.members.is_empty() {
+        // Class declaration without braces if no members
+        writeln!(output, "class {}", class_name).unwrap();
+    } else {
+        // Class declaration with braces
+        writeln!(output, "class {} {{", class_name).unwrap();
 
-    // Members - one per line with ClassName : member syntax
-    for member in &class.members {
-        write!(output, "{} : ", class_name).unwrap();
-        serialize_member(member, output);
-        output.push('\n');
+        // Members - one per line inside braces
+        for member in &class.members {
+            output.push_str("  ");
+            serialize_member(member, output);
+            output.push('\n');
+        }
+
+        output.push_str("}\n");
     }
 }
 
@@ -239,14 +246,21 @@ pub fn serialize_diagram(diagram: &Diagram) -> String {
                 .unwrap_or(&class.name);
             let class_name = escape_class_name(class_name_only);
 
-            // Class declaration
-            writeln!(output, "class {}", class_name).unwrap();
+            if class.members.is_empty() {
+                // Class declaration without braces if no members
+                writeln!(output, "class {}", class_name).unwrap();
+            } else {
+                // Class declaration with braces
+                writeln!(output, "class {} {{", class_name).unwrap();
 
-            // Members
-            for member in &class.members {
-                write!(output, "{} : ", class_name).unwrap();
-                serialize_member(member, &mut output);
-                output.push('\n');
+                // Members - one per line inside braces
+                for member in &class.members {
+                    output.push_str("  ");
+                    serialize_member(member, &mut output);
+                    output.push('\n');
+                }
+
+                output.push_str("}\n");
             }
         }
         output.push_str("}\n");
