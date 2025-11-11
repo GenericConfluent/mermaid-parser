@@ -61,21 +61,17 @@ pub enum Stmt<'source> {
 /// context we can only enter the class context.
 ///
 /// This parser was maded referencing version 11.12.0 of the Mermaid CLI. If there is a frontmatter
-pub fn parse_mermaid(text: &str) -> Result<Diagram, MermaidParseError> {
+pub fn parse_mermaid(source: &str) -> IResult<(), Diagram> {
     // First line MUST be --- unindented if we have a frontmatter
-    let (mut document, yaml) = if let Ok((rem, yaml)) = frontmatter::frontmatter(text) {
-        (rem, Some(yaml))
-    } else {
-        (text, None)
-    };
+    let (mut document, yaml) = frontmatter::frontmatter(source)?;
 
     // Then we can have comments until a diagram definition
-    while let Ok((rem, _)) = ws(comment).parse(text) {
+    while let Ok((rem, _)) = ws(comment).parse(document) {
         document = rem;
     }
 
     let Ok((mut body, _)) = class_diagram(document) else {
-        return Err(MermaidParseError::ExpectedClassDiagram);
+        return Err(nom::Err::Failure(MermaidParseError::ExpectedClassDiagram));
     };
 
     // Then we can parse the body of the diagram
@@ -109,7 +105,8 @@ pub fn parse_mermaid(text: &str) -> Result<Diagram, MermaidParseError> {
             let s_new2_result = space0::<_, nom::error::Error<_>>(s_new);
             if let Ok((s_new2, _)) = s_new2_result {
                 if let Ok((s_new3, _)) = char::<_, nom::error::Error<_>>(':')(s_new2) {
-                    let (s_new4, _) = space0::<_, nom::error::Error<_>>(s_new3).unwrap_or((s_new3, ""));
+                    let (s_new4, _) =
+                        space0::<_, nom::error::Error<_>>(s_new3).unwrap_or((s_new3, ""));
                     if let Ok((s_new5, member)) = class::class_member_stmt(s_new4) {
                         // Add member to the class in default namespace
                         if let Some(class) = namespaces
@@ -141,7 +138,7 @@ pub fn parse_mermaid(text: &str) -> Result<Diagram, MermaidParseError> {
             stmt
         }) {
             Err(_why) => {
-                return Err(MermaidParseError::ExpectedStmt);
+                return Err(nom::Err::Failure(MermaidParseError::ExpectedStmt));
             }
             Ok(Stmt::Class(class)) => {
                 namespaces
@@ -159,13 +156,13 @@ pub fn parse_mermaid(text: &str) -> Result<Diagram, MermaidParseError> {
         }
     }
 
-    Ok(Diagram {
+    Ok(((), Diagram {
         namespaces,
         relations,
         notes,
         direction,
         yaml,
-    })
+    }))
 }
 
 fn delete_match<I, O>(val: (I, O)) -> (I, ()) {
@@ -239,25 +236,33 @@ mod tests {
     #[test]
     fn test_direction_stmt() {
         // Test all direction values
-        let (rem, Stmt::Direction(dir)) = direction_stmt("direction TB").expect("Failed to parse TB direction") else {
+        let (rem, Stmt::Direction(dir)) =
+            direction_stmt("direction TB").expect("Failed to parse TB direction")
+        else {
             panic!("Expected Direction statement");
         };
         assert!(rem.is_empty());
         assert_eq!(dir, types::Direction::TopBottom);
 
-        let (rem, Stmt::Direction(dir)) = direction_stmt("direction BT").expect("Failed to parse BT direction") else {
+        let (rem, Stmt::Direction(dir)) =
+            direction_stmt("direction BT").expect("Failed to parse BT direction")
+        else {
             panic!("Expected Direction statement");
         };
         assert!(rem.is_empty());
         assert_eq!(dir, types::Direction::BottomTop);
 
-        let (rem, Stmt::Direction(dir)) = direction_stmt("direction LR").expect("Failed to parse LR direction") else {
+        let (rem, Stmt::Direction(dir)) =
+            direction_stmt("direction LR").expect("Failed to parse LR direction")
+        else {
             panic!("Expected Direction statement");
         };
         assert!(rem.is_empty());
         assert_eq!(dir, types::Direction::LeftRight);
 
-        let (rem, Stmt::Direction(dir)) = direction_stmt("direction RL").expect("Failed to parse RL direction") else {
+        let (rem, Stmt::Direction(dir)) =
+            direction_stmt("direction RL").expect("Failed to parse RL direction")
+        else {
             panic!("Expected Direction statement");
         };
         assert!(rem.is_empty());
@@ -265,7 +270,8 @@ mod tests {
 
         // Test with whitespace
         let (rem, Stmt::Direction(dir)) = direction_stmt("  direction   LR  ")
-            .expect("Failed to parse direction with whitespace") else {
+            .expect("Failed to parse direction with whitespace")
+        else {
             panic!("Expected Direction statement");
         };
         assert!(rem.trim().is_empty());
@@ -275,8 +281,9 @@ mod tests {
     #[test]
     fn test_note_stmt() {
         // Test general note (not attached to a class)
-        let (rem, Stmt::Note(note)) = note_stmt("note \"This is a general note\"")
-            .expect("Failed to parse general note") else {
+        let (rem, Stmt::Note(note)) =
+            note_stmt("note \"This is a general note\"").expect("Failed to parse general note")
+        else {
             panic!("Expected Note statement");
         };
         assert!(rem.is_empty());
@@ -285,7 +292,8 @@ mod tests {
 
         // Test note attached to a specific class
         let (rem, Stmt::Note(note)) = note_stmt("note for Vehicle \"Vehicles are fast\"")
-            .expect("Failed to parse note for class") else {
+            .expect("Failed to parse note for class")
+        else {
             panic!("Expected Note statement");
         };
         assert!(rem.is_empty());
@@ -293,8 +301,10 @@ mod tests {
         assert_eq!(note.target_class, Some("Vehicle".into()));
 
         // Test note with longer text
-        let (rem, Stmt::Note(note)) = note_stmt(r#"note "This is a longer note with some details""#)
-            .expect("Failed to parse longer note") else {
+        let (rem, Stmt::Note(note)) =
+            note_stmt(r#"note "This is a longer note with some details""#)
+                .expect("Failed to parse longer note")
+        else {
             panic!("Expected Note statement");
         };
         assert!(rem.is_empty());
@@ -302,7 +312,8 @@ mod tests {
 
         // Test note with special characters
         let (rem, Stmt::Note(note)) = note_stmt(r#"note "Note with symbols: !@#$%""#)
-            .expect("Failed to parse note with special chars") else {
+            .expect("Failed to parse note with special chars")
+        else {
             panic!("Expected Note statement");
         };
         assert!(rem.is_empty());
