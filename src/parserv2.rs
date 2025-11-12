@@ -96,6 +96,12 @@ pub fn parse_mermaid(source: &str) -> IResult<(), Diagram> {
             Err(_) => break,
         }
 
+        // Skip comments
+        match comment(body) {
+            Ok((rem, _)) => body = rem,
+            Err(_) => break,
+        }
+
         if body.is_empty() {
             break;
         }
